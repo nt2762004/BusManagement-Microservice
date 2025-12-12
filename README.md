@@ -3,6 +3,7 @@
 Dự án quản lý hệ thống xe buýt được xây dựng dựa trên kiến trúc Microservices, giúp quản lý toàn diện các hoạt động vận hành xe buýt từ quản lý xe, tài xế, lộ trình đến đặt vé và thông báo.
 
 **Note: Dự án được deploy trên AWS với tài khoản FreeTier nên dự án sẽ có hiệu suất không ổn định.**
+
 Link deployed: http://13.214.207.121/
 - Tài khoản Chủ nhà xe: TK: chunhaxe1, MK: 123 | TK: chunhaxe2, MK: 123.
 - Tài khoản Điều hành: TK: dieuhanh1, MK: 123 | TK: dieuhanh2, MK: 123 | TK: dieuhanh3, MK: 123.
