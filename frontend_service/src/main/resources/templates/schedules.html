@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lịch làm việc tài xế</title>
+  <script>
+    // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+    const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+  </script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/dashboard.css" />
+  <link rel="stylesheet" href="/css/common.css" />
+  <link rel="stylesheet" href="/css/schedules.css" />
+  <!-- Flatpickr for modern datetime popup -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css" />
+  <script src="/js/role-guard.js"></script>
+  <style>
+  </style>
+</head>
+<body>
+<div class="dashboard admin-dashboard" style="display:flex;">
+  <aside class="sidebar">
+    <div class="logo"><i class="fas fa-bus"></i><h2>Bus Management</h2></div>
+    <div class="user-info">
+      <div class="user-avatar"><i class="fas fa-user-shield"></i></div>
+      <h3 id="sidebarFullName"></h3>
+      <p id="sidebarRole"></p>
+    </div>
+    <ul class="nav-menu">
+      <li class="nav-item"><a href="/dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a></li>
+      <li class="nav-item" data-roles="ADMIN"><a href="/user_mana" class="nav-link"><i class="fas fa-users"></i>Quản lý người dùng</a></li>
+      <li class="nav-item" data-roles="CHỦ NHÀ XE, ADMIN"><a href="/buses" class="nav-link"><i class="fas fa-bus"></i>Quản lý xe buýt</a></li>
+      <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/drivers" class="nav-link"><i class="fas fa-id-card"></i>Quản lý tài xế</a></li>
+      <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/routes" class="nav-link"><i class="fas fa-route"></i>Quản lý tuyến đường</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾ, CHỦ NHÀ XE"><a href="/schedules" class="nav-link active"><i class="fas fa-calendar"></i>Lịch trình</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/reports" class="nav-link"><i class="fas fa-chart-bar"></i>Báo cáo</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/trips" class="nav-link"><i class="fas fa-flag-checkered"></i>Quản lý chuyến</a></li>
+      <li class="nav-item" data-roles="ADMIN"><a href="/settings" class="nav-link"><i class="fas fa-cog"></i>Cài đặt</a></li>
+    </ul>
+  </aside>
+  <main class="main-content">
+    <div class="header">
+      <h1><i class="fas fa-calendar"></i> Lịch làm việc tài xế</h1>
+      <form method="get" action="/logout" style="display:inline;">
+        <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i>Đăng xuất</button>
+      </form>
+    </div>
+    <div class="toolbar">
+      <div class="nav-btn-group">
+        <button class="nav-btn" id="btnToday">Hôm nay</button>
+        <button class="nav-btn" id="btnPrev"><i class="fas fa-chevron-left"></i></button>
+        <button class="nav-btn" id="btnNext"><i class="fas fa-chevron-right"></i></button>
+        <button class="btn primary" id="btnMyTrips" style="display:none;"><i class="fas fa-location-arrow"></i> Chuyến của tôi</button>
+      </div>
+      <div class="nav-btn-group">
+        <button class="nav-btn" data-view="dayGridMonth">Tháng</button>
+        <button class="nav-btn" data-view="timeGridWeek">Tuần</button>
+        <button class="nav-btn" data-view="timeGridDay">Ngày</button>
+        <button class="nav-btn" data-view="listWeek">Danh sách</button>
+      </div>
+      <div id="calTitle" class="calendar-title"></div>
+    </div>
+    <div class="calendar-shell">
+      <div id="calendar"></div>
+      <div class="legend">        
+        <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span><span class="label">Chuyến chưa chạy</span></div>
+        <div class="legend-item"><span class="legend-dot" style="background:#059669"></span><span class="label">Đang chạy</span></div>
+        <div class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span><span class="label">Hoàn tất</span></div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span><span class="label">Hủy</span></div>
+        <div class="legend-item"><span class="legend-dot" style="background:#4338ca"></span><span class="label">Ca của tôi</span></div>
+      </div>
+    </div>
+    <!-- Driver Trip Update Modal (driver only) -->
+    <div id="tripUpdateModal" class="modal" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="tripUpdateTitle">
+        <h3 id="tripUpdateTitle">Cập nhật chuyến</h3>
+        <input type="hidden" id="u_tripId" />
+        <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: .9rem;">
+          <div>
+            <label for="u_status">Trạng thái</label>
+            <div class="modern-select" data-enhance-select>
+              <select id="u_status">
+                <option value="NOT_STARTED">Chưa bắt đầu</option>
+                <option value="IN_PROGRESS">Đang chạy</option>
+                <option value="COMPLETED">Hoàn thành</option>
+                <option value="CANCELLED">Đã hủy</option>
+              </select>
+              <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="ms-value"></span>
+                <span class="ms-caret"></span>
+              </button>
+              <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+          </div>
+          <div></div>
+          <div>
+            <label for="u_actualStart">Bắt đầu thực tế</label>
+            <div class="dt-modern" data-wrap>
+              <input type="datetime-local" id="u_actualStart" data-input />
+              <button type="button" class="dt-cal-btn" title="Mở lịch" aria-label="Mở lịch" data-toggle>
+                <i class="fa-regular fa-calendar"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label for="u_actualEnd">Kết thúc thực tế</label>
+            <div class="dt-modern" data-wrap>
+              <input type="datetime-local" id="u_actualEnd" data-input />
+              <button type="button" class="dt-cal-btn" title="Mở lịch" aria-label="Mở lịch" data-toggle>
+                <i class="fa-regular fa-calendar"></i>
+              </button>
+            </div>
+          </div>
+          <div style="grid-column:1/3;">
+            <label for="u_note">Ghi chú</label>
+            <textarea id="u_note" rows="2" placeholder="Ghi chú (tuỳ chọn)"></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" id="u_cancelBtn" type="button">Đóng</button>
+          <button class="btn primary" id="u_saveBtn" type="button">Lưu cập nhật</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="notifyBox"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.10/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/vn.js"></script>
+<script>
+// Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+const AUTH_API = `${GATEWAY_BASE}/api/auth/me`;
+const DRIVER_API = `${GATEWAY_BASE}/api/drivers`;
+// Calendar now uses TRIP timeline directly (không dùng ca làm việc)
+const TRIP_API = `${GATEWAY_BASE}/api/trips`; // Expect fields: id, driverId?, routeId, vehicleId, status, plannedStart, plannedEnd
+
+function showNotify(message, type='info', ms=2600){
+  const box=document.getElementById('notifyBox'); if(!box) return;
+  const colors={success:'#16a34a',error:'#dc2626',info:'#2563eb',warn:'#d97706'};
+  box.style.background=colors[type]||colors.info; box.textContent=message; box.style.display='block'; box.style.opacity='1';
+  if(box._t) clearTimeout(box._t); if(ms>0) box._t=setTimeout(()=>{box.style.transition='opacity .4s'; box.style.opacity='0'; setTimeout(()=>{box.style.display='none'; box.style.transition='';},420);}, ms);
+}
+async function apiFetch(url, opts={}){ const o={credentials:'include', ...opts}; try{ const r=await fetch(url,o); if(r.status===401){return null;} return await r.json().catch(()=>null);}catch(e){showNotify('Mất kết nối','error'); return null;} }
+function resolveUserInfo(resp){ const u=(resp&&(resp.data||resp.user))||resp||{}; const full=u.fullName||u.fullname||u.name||u.username||'User'; const raw=u.roles||u.role||u.authorities||[]; const roles=Array.isArray(raw)? raw.map(x=> typeof x==='string'? x: (x.name||x.role||x.authority||'')).filter(Boolean): (typeof raw==='string'? [raw]:[]); return {id:u.id, fullName:full, roles, phone:u.phone}; }
+async function loadCurrentUser(){ const data=await apiFetch(AUTH_API); if(!data) return; const {id,fullName,roles,phone}=resolveUserInfo(data); const fnEl=document.getElementById('sidebarFullName'); if(fnEl) fnEl.textContent=fullName; const rEl=document.getElementById('sidebarRole'); if(rEl) rEl.textContent=roles.join(', '); window.__userRole=roles.join(', '); window.__userId=id; window.__currentUserId=id; window.__userPhone=phone; if(window.applyDenyRoles) window.applyDenyRoles(window.__userRole); }
+
+// Drivers cache for aggregated calendar (no dropdown)
+let __drivers = [];
+let __driverMap = new Map();
+async function loadDriversCache(){
+  const data = await apiFetch(DRIVER_API);
+  const list = Array.isArray(data) ? data : (data?.data || []);
+  let drivers = list || [];
+  // Nếu là tài xế đăng nhập -> chỉ xem lịch của chính mình
+  if ((window.__userRole||'').includes('TÀI XẾ')){
+    if (window.__userId){ drivers = drivers.filter(d => String(d.authUserId||'') === String(window.__userId)); }
+    // fallback qua số điện thoại nếu chưa có mapping
+    if ((!drivers || drivers.length===0) && window.__userPhone){ drivers = (list||[]).filter(d => String(d.phone||'') === String(window.__userPhone)); }
+  }
+  __drivers = drivers;
+  __driverMap = new Map((__drivers||[]).map(d => [d.id, d.fullName || d.name || ('Tài xế '+d.id)]));
+}
+
+// Calendar setup
+let calendar; let currentViewType='';
+function scheduleBaseColor(st){ switch(st){ case 'CONFIRMED': return '#10b981'; case 'CANCELLED': return '#dc2626'; default: return '#667eea'; } }
+
+// Trip status -> CSS class suffix
+function tripClassByStatus(status){
+  if(!status) return 'evt-unassigned';
+  return 'evt-trip-'+status;
+}
+
+// Load trips once per visible range for aggregation
+let __trips = [];
+async function loadTrips(){
+  const data = await apiFetch(TRIP_API);
+  const list = Array.isArray(data) ? data : (data?.data||[]);
+  __trips = list || [];
+}
+
+function parseIsoOrDate(v){
+  if(!v) return NaN;
+  const t = Date.parse(v);
+  return t;
+}
+
+async function gotoMyTrips(){
+  try{
+    if(!(window.__userRole||'').includes('TÀI XẾ')) return;
+    if(!calendar){ showNotify('Lịch chưa sẵn sàng','warn'); return; }
+    
+    if(!__trips || __trips.length===0){ await loadTrips(); }
+    
+    const myId = window.__userDriverId || window.__driverSelfId;
+    if(!myId){ showNotify('Không xác định tài xế hiện tại','warn'); return; }
+    
+    // Tìm chuyến của mình
+    const myTrips = (__trips||[]).filter(t => String(t.driverId||'') === String(myId))
+      .map(t => ({...t, _startMs: parseIsoOrDate(t.plannedStart||t.start)}))
+      .filter(t => !isNaN(t._startMs))
+      .sort((a,b)=> a._startMs - b._startMs);
+      
+    if(myTrips.length===0){ showNotify('Bạn chưa có chuyến nào','info'); return; }
+    
+    // Tìm chuyến sắp tới gần nhất
+    const now = Date.now();
+    let target = myTrips.find(t => t._startMs >= now);
+    // Nếu không có chuyến tương lai, lấy chuyến gần nhất trong quá khứ
+    if(!target) target = myTrips[myTrips.length-1];
+    
+    const targetDate = new Date(target.plannedStart || target.start);
+    
+    // 1. Chuyển sang view Ngày
+    calendar.changeView('timeGridDay');
+    
+    // 2. Nhảy tới ngày đó
+    calendar.gotoDate(targetDate);
+    
+    // 3. --- THÊM ĐOẠN NÀY: Cuộn tới giờ ---
+    // Lấy giờ bắt đầu (định dạng HH:mm:ss)
+    const hh = targetDate.getHours().toString().padStart(2,'0');
+    const mm = targetDate.getMinutes().toString().padStart(2,'0');
+    const ss = targetDate.getSeconds().toString().padStart(2,'0');
+    const timeStr = `${hh}:${mm}:${ss}`;
+    
+    // Lệnh cuộn của FullCalendar
+    calendar.scrollToTime(timeStr);
+    // --------------------------------------
+
+    updateCalendarTitle();
+    showNotify(`Đến ngày chuyến #${target.id}`,'success',1800);
+    
+  }catch(e){ 
+      console.error(e);
+      showNotify('Không thể chuyển tới chuyến của bạn','error'); 
+  }
+}
+
+async function fetchEvents(info, success, failure){
+  try {
+    // Load drivers to show names and to detect "my" driverId
+    if (!__drivers || __drivers.length === 0) await loadDriversCache();
+    await loadTrips(); // could be optimized by backend range query
+    const startMs = info.start.getTime();
+    const endMs = info.end.getTime();
+    let trips = __trips.filter(t => {
+      const ps = Date.parse(t.plannedStart||t.start||'');
+      const pe = Date.parse(t.plannedEnd||t.end||'');
+      if (isNaN(ps) || isNaN(pe)) return false;
+      return (ps < endMs && pe > startMs);
+    });
+    // Role: driver -> only own trips
+    if ((window.__userRole||'').includes('TÀI XẾ')){
+      const myId = window.__userDriverId || window.__driverSelfId;
+      if (myId) trips = trips.filter(t => String(t.driverId||'') === String(myId));
+    }
+    const events = trips.map(t => {
+      const driverId = t.driverId;
+      const driverName = __driverMap.get(driverId) || (driverId ? ('Tài xế '+driverId) : 'Chưa gán tài xế');
+      const routeId = t.routeId; const vehicleId = t.vehicleId;
+      const title = `${driverName} • #${t.id} tuyến ${routeId} xe ${vehicleId}`;
+      return {
+        id: `trip-${t.id}`,
+        title,
+        start: t.plannedStart||t.start,
+        end: t.plannedEnd||t.end,
+        extendedProps: {
+          driverId,
+          driverName,
+          tripId: t.id,
+          routeId,
+          vehicleId,
+          tripStatus: t.status,
+          plannedStart: t.plannedStart||t.start,
+          plannedEnd: t.plannedEnd||t.end,
+          actualStart: t.actualStart||null,
+          actualEnd: t.actualEnd||null,
+          note: t.note||''
+        }
+      };
+    });
+    success(events);
+  } catch(e){ failure(e); }
+}
+
+function initCalendar(){
+  const el=document.getElementById('calendar'); if(!el) return;
+  calendar=new FullCalendar.Calendar(el, {
+    initialView:'timeGridWeek',
+    locale:'vi',
+    firstDay:1,
+    slotMinTime:'00:00:00',
+    slotMaxTime:'24:00:00',
+    allDaySlot:false,
+    nowIndicator:true,
+    // Prevent events from visually overlapping in timeGrid
+    slotEventOverlap:false,
+    eventOverlap:false,
+    // Limit dense stacks in day/month views
+    dayMaxEvents:true,
+    dayMaxEventRows:4,
+    handleWindowResize:true,
+    selectable:false,
+    height:'100%',
+    expandRows:true,
+    headerToolbar:false,
+    weekends:true,
+    eventTimeFormat:{hour:'2-digit', minute:'2-digit', hour12:false},
+    views: {
+      dayGridMonth: {
+        // Show the standard +more text again to avoid hiding single events
+        moreLinkContent(args){
+          return args?.text || `+${args.num} more`;
+        },
+        dayMaxEventRows: 6 // allow more rows so single events are less likely to be hidden
+      }
+    },
+    viewDidMount(arg){ currentViewType = arg.view?.type || currentViewType; },
+    datesSet(arg){
+      currentViewType = arg.view?.type || currentViewType;
+      // When switching to month view, auto-open +more popovers for drivers
+      if(currentViewType === 'dayGridMonth') setTimeout(autoOpenMoreLinksIfDriver, 0);
+    },
+    eventsSet(){
+      // After events render/update, ensure +more are auto-opened for drivers in month view
+      if(currentViewType === 'dayGridMonth') setTimeout(autoOpenMoreLinksIfDriver, 0);
+    },
+    eventClassNames(arg){
+      const ep=arg.event.extendedProps||{};
+      const classes=[];
+      // Distinguish own driver events
+      if((window.__userRole||'').includes('TÀI XẾ')){
+        if(String(ep.driverId) === String(window.__driverSelfId||window.__userDriverId||'0')){
+          classes.push('evt-own');
+        } else {
+          classes.push('evt-other');
+        }
+      }
+      classes.push(tripClassByStatus(ep.tripStatus));
+      return classes;
+    },
+    eventContent(arg){
+      const ep=arg.event.extendedProps||{};
+      const wrap=document.createElement('div'); wrap.style.whiteSpace='normal';
+      const badge=document.createElement('span'); badge.className='evt-badge'; badge.textContent=ep.tripStatus || 'CHUYẾN';
+      const line1=document.createElement('div'); line1.className='evt-line1';
+      const line2=document.createElement('div'); line2.className='evt-meta';
+      const driverName = ep.driverName || '';
+      // Icon HTML strings
+      const iconRoute = '<i class="fa-solid fa-route"></i>';
+      const iconBus = '<i class="fa-solid fa-bus"></i>';
+      const iconHashtag = '<i class="fa-solid fa-hashtag"></i>';
+      const routeStr = `${iconRoute} Tuyến ${ep.routeId}`;
+      const busStr = `${iconBus} Xe ${ep.vehicleId}`;
+      const idStr = `${iconHashtag} ${ep.tripId}`;
+      if(currentViewType.startsWith('timeGrid')){
+        const title=document.createElement('span'); title.className='evt-title'; title.textContent=driverName || arg.event.title;
+        line1.appendChild(badge); line1.appendChild(title);
+        // use innerHTML because contains icons
+        line2.innerHTML = `${routeStr} • ${busStr} • ${idStr}`;
+      } else if(currentViewType.startsWith('dayGrid')){
+        const title=document.createElement('span'); title.className='evt-title'; title.textContent=driverName || arg.event.title;
+        // Month view (dayGridMonth): do NOT show status badge to save space
+        line1.appendChild(title);
+        line2.innerHTML = `${routeStr} • ${busStr}`;
+      } else if(currentViewType.startsWith('list')){
+        const title=document.createElement('span'); title.className='evt-title';
+        // list title includes id with icon, must be innerHTML
+        title.innerHTML = `${driverName || 'Chuyến'} • ${idStr}`;
+        line1.appendChild(badge); line1.appendChild(title);
+        line2.innerHTML = `${routeStr} • ${busStr}`;
+      } else {
+        const title=document.createElement('span'); title.className='evt-title'; title.textContent=arg.event.title;
+        line1.appendChild(badge); line1.appendChild(title);
+        line2.textContent=`Tuyến ${ep.routeId} • Xe ${ep.vehicleId}`;
+      }
+      wrap.appendChild(line1); wrap.appendChild(line2);
+      return {domNodes:[wrap]};
+    },
+    eventDidMount(info){
+      // Tooltip
+      const ep=info.event.extendedProps||{};
+      const tip=document.createElement('div'); tip.className='trip-tooltip';
+      const lines=[];
+      lines.push(`<strong>${ep.driverName||'Chưa gán tài xế'}</strong>`);
+      lines.push(`Chuyến #${ep.tripId} · ${ep.tripStatus||''}`);
+      lines.push(`Tuyến: ${ep.routeId}`);
+      lines.push(`Xe: ${ep.vehicleId}`);
+      const s = info.event.start, e = info.event.end; if(s&&e){
+        const fmt=(d)=> d.toLocaleString('vi-VN',{ hour:'2-digit', minute:'2-digit' });
+        lines.push(`Giờ: ${fmt(s)} - ${fmt(e)}`);
+      }
+      tip.innerHTML=lines.join('<br>');
+      let shown=false;
+      function show(){ if(shown) return; shown=true; document.body.appendChild(tip); position(); }
+      function hide(){ shown=false; if(tip.parentNode) tip.parentNode.removeChild(tip); }
+      function position(){
+        const r=info.el.getBoundingClientRect();
+        tip.style.left=(r.left + window.scrollX + 8)+'px';
+        tip.style.top=(r.top + window.scrollY - tip.offsetHeight - 6)+'px';
+      }
+      info.el.addEventListener('mouseenter', show);
+      info.el.addEventListener('mousemove', position);
+      info.el.addEventListener('mouseleave', hide);
+    },
+    eventClick(info){
+      // Only allow drivers to edit via calendar
+      if(!((window.__userRole||'').includes('TÀI XẾ'))) return;
+      const st = (info.event.extendedProps?.tripStatus||'').toString().toUpperCase();
+      if(st === 'COMPLETED'){
+        showNotify('Chuyến đã hoàn thành, không thể chỉnh sửa','warn',1800);
+        return;
+      }
+      openTripUpdateModal(info.event);
+      info.jsEvent?.preventDefault?.();
+    },
+    events: fetchEvents
+  });
+  calendar.render();
+  updateCalendarTitle();
+}
+
+// Navigation
+function bindNav(){
+  document.getElementById('btnToday').onclick=()=>calendar?.today();
+  document.getElementById('btnPrev').onclick=()=>calendar?.prev();
+  document.getElementById('btnNext').onclick=()=>calendar?.next();
+  document.querySelectorAll('[data-view]').forEach(btn=>{
+    btn.onclick=()=>{ calendar?.changeView(btn.getAttribute('data-view')); };
+  });
+  ['btnToday','btnPrev','btnNext'].forEach(id=>{ const b=document.getElementById(id); if(b) b.addEventListener('click', updateCalendarTitle); });
+  document.querySelectorAll('[data-view]').forEach(btn=> btn.addEventListener('click', updateCalendarTitle));
+  const myBtn = document.getElementById('btnMyTrips');
+  if(myBtn){ myBtn.addEventListener('click', gotoMyTrips); }
+}
+
+function updateCalendarTitle(){
+  if(!calendar) return; const el=document.getElementById('calTitle'); if(!el) return; el.textContent = calendar.view?.title || '';
+}
+
+// Auto-open all "+n more" popovers in Month view for drivers
+function autoOpenMoreLinksIfDriver(){
+  try{
+    if(!(window.__userRole||'').includes('TÀI XẾ')) return;
+    if(!calendar || calendar.view?.type !== 'dayGridMonth') return;
+    const root = document.getElementById('calendar'); if(!root) return;
+    const links = root.querySelectorAll('.fc-daygrid-more-link');
+    links.forEach(link => {
+      // Skip if we've already auto-opened this link during this session
+      if(link.dataset.autoOpened === '1') return;
+      const text = (link.textContent||'').trim();
+      if(/\+\d+\s+more/i.test(text)){
+        link.dataset.autoOpened = '1';
+        // Click asynchronously to avoid layout thrash
+        setTimeout(()=>{ try{ link.click(); }catch(_){} }, 30);
+      }
+    });
+  }catch(_){ /* ignore */ }
+}
+
+// Helpers for datetime-local <-> ISO
+function toDatetimeLocalInput(v){
+  if(!v) return '';
+  try{
+    const d = typeof v==='string'? new Date(v): v;
+    const pad=n=> String(n).padStart(2,'0');
+    const yyyy=d.getFullYear(); const mm=pad(d.getMonth()+1); const dd=pad(d.getDate());
+    const hh=pad(d.getHours()); const mi=pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  }catch{ return ''; }
+}
+function fromDatetimeLocalInput(v){
+  if(!v) return null;
+  return v.length===16? `${v}:00`: v;
+}
+
+function openTripUpdateModal(event){
+  try{
+    const modal = document.getElementById('tripUpdateModal');
+    if(!modal) return;
+    const ep = event.extendedProps||{};
+    const idEl = document.getElementById('u_tripId');
+    const stEl = document.getElementById('u_status');
+    const asEl = document.getElementById('u_actualStart');
+    const aeEl = document.getElementById('u_actualEnd');
+    const noteEl = document.getElementById('u_note');
+    idEl.value = (ep.tripId!=null? ep.tripId: (event.id||'')).toString().replace(/^trip-/,'');
+    // Normalize and set status value, then sync modern-select UI
+    (function(){
+      const raw = (ep.tripStatus||'').toString();
+      const norm = raw.toUpperCase();
+      const allowed = new Set(['NOT_STARTED','IN_PROGRESS','COMPLETED','CANCELLED']);
+      stEl.value = allowed.has(norm) ? norm : 'NOT_STARTED';
+      // reflect to custom trigger without firing change logic
+      syncModernSelectDisplay(stEl);
+    })();
+    asEl.value = toDatetimeLocalInput(ep.actualStart);
+    aeEl.value = toDatetimeLocalInput(ep.actualEnd);
+    noteEl.value = ep.note || '';
+    // Initialize modern calendar pickers with current values
+    initDateTimePickers();
+
+    // Helpers for auto-fill and consistency
+    const nowLocalNoSeconds = () => {
+      const d = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth()+1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+    };
+    const ensureCompletedConsistency = () => {
+      try{
+        if(stEl.value !== 'COMPLETED') return;
+        if(aeEl.value && asEl.value){
+          const s = new Date(asEl.value);
+          const e = new Date(aeEl.value);
+          if(isNaN(s) || isNaN(e)) return;
+          // Require end strictly after start. If not, bump end to start + 1 minute
+          if(e.getTime() <= s.getTime()){
+            const adj = new Date(s.getTime() + 60*1000);
+            aeEl.value = toDatetimeLocalInput(adj);
+          }
+        }
+      }catch(_){/* ignore */}
+    };
+
+    // Prefill when status changes
+    stEl.onchange = () => {
+      if(stEl.value === 'IN_PROGRESS'){
+        if(!asEl.value){ asEl.value = nowLocalNoSeconds(); }
+      } else if(stEl.value === 'COMPLETED'){
+        if(!asEl.value){ asEl.value = toDatetimeLocalInput(ep.plannedStart) || nowLocalNoSeconds(); }
+        if(!aeEl.value){ aeEl.value = nowLocalNoSeconds(); }
+        ensureCompletedConsistency();
+      }
+      // sync modern-select value display
+      syncModernSelectDisplay(stEl);
+      // keep Flatpickr in sync when value programmatically changes
+      if(asEl && asEl._flatpickr) asEl._flatpickr.setDate(asEl.value || null, false);
+      if(aeEl && aeEl._flatpickr) aeEl._flatpickr.setDate(aeEl.value || null, false);
+    };
+
+    const cancelBtn = document.getElementById('u_cancelBtn');
+    const saveBtn = document.getElementById('u_saveBtn');
+    cancelBtn.onclick = () => { modal.classList.remove('active'); };
+    saveBtn.onclick = async () => {
+      try{
+        // Auto-set based on chosen status if user left times empty
+        if(stEl.value === 'IN_PROGRESS' && !asEl.value){
+          asEl.value = nowLocalNoSeconds();
+        }
+        if(stEl.value === 'COMPLETED'){
+          if(!asEl.value){ asEl.value = toDatetimeLocalInput(ep.plannedStart) || nowLocalNoSeconds(); }
+          if(!aeEl.value){ aeEl.value = nowLocalNoSeconds(); }
+          ensureCompletedConsistency();
+        }
+        const payload = {
+          status: stEl.value,
+          actualStart: fromDatetimeLocalInput(asEl.value),
+          actualEnd: fromDatetimeLocalInput(aeEl.value),
+          note: (noteEl.value||'').trim() || null
+        };
+        // Include userId for tracking who updated the trip
+        if(window.__currentUserId) {
+          payload.userId = window.__currentUserId;
+        }
+        Object.keys(payload).forEach(k=> payload[k]===null && delete payload[k]);
+        const id = idEl.value;
+        const res = await apiFetch(`${TRIP_API}/${id}`, {
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if(res===null){ showNotify('Phiên đăng nhập hết hạn','warn'); return; }
+        showNotify('Cập nhật chuyến thành công','success');
+        modal.classList.remove('active');
+        // Refresh events
+        if(calendar && typeof calendar.refetchEvents==='function') calendar.refetchEvents();
+      }catch(e){ console.error(e); showNotify('Cập nhật thất bại','error'); }
+    };
+
+    // click outside to close (one-off)
+    const outside = (e)=>{ if(e.target===modal){ modal.classList.remove('active'); modal.removeEventListener('click', outside); } };
+    modal.addEventListener('click', outside);
+    modal.classList.add('active');
+  }catch(e){ console.error(e); }
+}
+
+// Attach Flatpickr to datetime inputs without changing IDs/logic
+function initDateTimePickers(){
+  try{
+    const as = document.getElementById('u_actualStart');
+    const ae = document.getElementById('u_actualEnd');
+    const now = new Date();
+    const common = {
+      enableTime:true,
+      time_24hr:true,
+      dateFormat:'Y-m-d\\TH:i', // keep value in native-like format (16 chars)
+      altInput:true,
+      altFormat:'d/m/Y H:i',
+      allowInput:false,
+      clickOpens:true,
+      wrap:true,
+      defaultHour: now.getHours(),
+      defaultMinute: now.getMinutes(),
+      locale: (window.flatpickr?.l10ns?.vn) ? flatpickr.l10ns.vn : undefined
+    };
+    if(window.flatpickr){
+      const asWrap = as ? as.closest('.dt-modern') : null;
+      const aeWrap = ae ? ae.closest('.dt-modern') : null;
+      if(asWrap){
+        if(!as._flatpickr){
+          const fp = flatpickr(asWrap, {
+            ...common,
+            defaultDate: as.value || null,
+            onReady: [function(_sd, _ds, instance){ if(!as.value){ instance.jumpToDate(now); } }],
+            onOpen: [function(_sd, _ds, instance){ if(!as.value){ instance.jumpToDate(now); } }]
+          });
+          // Store instance on the input for later programmatic sync
+          as._flatpickr = fp;
+          if(fp && fp.altInput) fp.altInput.placeholder = 'dd/mm/yyyy  HH:mm';
+        } else {
+          as._flatpickr.setDate(as.value || null, false);
+          if(!as.value){ as._flatpickr.jumpToDate(now); }
+        }
+      }
+      if(aeWrap){
+        if(!ae._flatpickr){
+          const fp2 = flatpickr(aeWrap, {
+            ...common,
+            defaultDate: ae.value || null,
+            onReady: [function(_sd, _ds, instance){ if(!ae.value){ instance.jumpToDate(now); } }],
+            onOpen: [function(_sd, _ds, instance){ if(!ae.value){ instance.jumpToDate(now); } }]
+          });
+          // Store instance on the input for later programmatic sync
+          ae._flatpickr = fp2;
+          if(fp2 && fp2.altInput) fp2.altInput.placeholder = 'dd/mm/yyyy  HH:mm';
+        } else {
+          ae._flatpickr.setDate(ae.value || null, false);
+          if(!ae.value){ ae._flatpickr.jumpToDate(now); }
+        }
+      }
+    }
+  }catch(_){/* ignore */}
+}
+
+// Modern select enhancer (simple subset from trip.html)
+function enhanceModernSelect(root){
+  const native = root.querySelector('select');
+  const trigger = root.querySelector('.ms-trigger');
+  const list = root.querySelector('.ms-dropdown');
+  if(!native || !trigger || !list) return;
+  function build(){
+    list.innerHTML='';
+    [...native.options].forEach(opt=>{
+      const li=document.createElement('li');
+      li.className='ms-option'+(opt.selected?' active':'');
+      li.dataset.value=opt.value; li.textContent=opt.textContent; li.role='option'; li.tabIndex=-1;
+      li.onclick=()=>selectValue(opt.value,true);
+      list.appendChild(li);
+    });
+    if(!native.options.length) list.innerHTML='<li class="ms-option">Không có lựa chọn</li>';
+  }
+  function selectValue(v, close){
+    native.value=v;
+    trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?native.selectedOptions[0].textContent:'';
+    [...list.children].forEach(li=> li.classList.toggle('active', li.dataset.value===v));
+    native.dispatchEvent(new Event('change',{bubbles:true}));
+    if(close) closeDropdown();
+  }
+  function openDropdown(){
+    root.classList.add('open');
+    trigger.setAttribute('aria-expanded','true');
+    trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?native.selectedOptions[0].textContent:'';
+    [...list.querySelectorAll('.ms-option')].forEach(li=> li.classList.toggle('active', li.dataset.value===native.value));
+    document.addEventListener('click', outside);
+  }
+  function closeDropdown(){
+    root.classList.remove('open');
+    trigger.setAttribute('aria-expanded','false');
+    document.removeEventListener('click', outside);
+  }
+  function outside(e){ if(!root.contains(e.target)) closeDropdown(); }
+  trigger.onclick = (e)=>{ e.preventDefault(); root.classList.contains('open')? closeDropdown(): openDropdown(); };
+  native.addEventListener('change', ()=>{
+    trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?native.selectedOptions[0].textContent:'';
+    [...list.children].forEach(li=> li.classList.toggle('active', li.dataset.value===native.value));
+  });
+  build();
+  trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?native.selectedOptions[0].textContent:'';
+  root._enhanced = true;
+}
+function syncModernSelectDisplay(sel){
+  try{
+    const root = sel.closest('.modern-select');
+    if(!root || !root._enhanced) return;
+    const triggerVal = root.querySelector('.ms-value');
+    if(triggerVal) triggerVal.textContent = sel.selectedOptions[0]?.textContent || '';
+    const list = root.querySelector('.ms-dropdown');
+    if(list){ [...list.children].forEach(li=> li.classList.toggle('active', li.dataset.value===sel.value)); }
+  }catch(_){/* ignore */}
+}
+
+(async function start(){
+  await loadCurrentUser();
+  await loadDriversCache();
+  // Determine current driver's mapped ID for own highlighting (search by authUserId)
+  if((window.__userRole||'').includes('TÀI XẾ')){
+    const self = (__drivers||[]).find(d => String(d.authUserId||'') === String(window.__userId));
+    if(self){ window.__userDriverId = self.id; window.__driverSelfId = self.id; }
+    const myBtn = document.getElementById('btnMyTrips');
+    if(myBtn){ myBtn.style.display='inline-flex'; }
+  }
+  initCalendar();
+  bindNav();
+  // Enhance status select
+  document.querySelectorAll('.modern-select[data-enhance-select]').forEach(enhanceModernSelect);
+})();
+</script>
+</body>
+</html>

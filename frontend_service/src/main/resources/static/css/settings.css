@@ -1,0 +1,108 @@
+.action-btn {
+    background: #667eea;
+}
+.action-btn:hover {
+    background: #110074ff;
+}
+.modal.hide {
+    animation: fadeOut 0.3s forwards;
+}
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.25);
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s;
+}
+.modal.active {
+    display: flex;
+}
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 2rem 2.5rem;
+    min-width: 340px;
+    box-shadow: 0 4px 24px rgba(118,75,162,0.15);
+    animation: fadeInUp 0.3s;
+}
+.modal-content label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+.modal-content input {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border: 1.5px solid #764ba2;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    background: #f8f9fa;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    will-change: border-color, box-shadow;
+}
+.modal-content input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 1.5px #667eea33;
+    outline: none;
+    background: #fff;
+}
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.content-section {
+    margin-bottom: 1.5rem;
+}
+.settings-form input[type="text"],
+.settings-form input[type="password"],
+.settings-form input[type="email"],
+.settings-form textarea {
+    width: 50%;
+    padding: 0.6rem 1rem;
+    border: 1.5px solid #764ba2;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    background: #f8f9fa;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.settings-form input[type="text"]:focus,
+.settings-form input[type="password"]:focus,
+.settings-form input[type="email"]:focus,
+.settings-form textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px #667eea33;
+    outline: none;
+    background: #fff;
+}
+.settings-form label {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 0.3rem;
+    display: block;
+}
+
+/* Khoảng cách giữa sidebar và nội dung */
+.dashboard.admin-dashboard {
+    margin-left: 50px;
+}
+.main-content {
+    padding-left: 0px;
+}

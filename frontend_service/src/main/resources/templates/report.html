@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Báo Cáo Hệ Thống - Hệ Thống Quản Lý Xe Buýt</title>
+    <script>
+        // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+        const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/common.css">
+    <script src="/js/role-guard.js"></script>
+    <link rel="stylesheet" href="/css/report.css">
+
+</head>
+<body>
+<div class="dashboard admin-dashboard" style="display:flex;">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <i class="fas fa-bus"></i>
+            <h2>Bus Management</h2>
+        </div>
+        
+        <div class="user-info">
+            <div class="user-avatar">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <h3 id="sidebarFullName"></h3>
+            <p id="sidebarRole"></p>
+        </div>
+        
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="/dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/user_mana" class="nav-link"><i class="fas fa-users"></i>Quản lý người dùng</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE, ADMIN"><a href="/buses" class="nav-link"><i class="fas fa-bus"></i>Quản lý xe buýt</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/drivers" class="nav-link"><i class="fas fa-id-card"></i>Quản lý tài xế</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/routes" class="nav-link"><i class="fas fa-route"></i>Quản lý tuyến đường</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾ, CHỦ NHÀ XE"><a href="/schedules" class="nav-link"><i class="fas fa-calendar"></i>Lịch trình</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/reports" class="nav-link active"><i class="fas fa-chart-bar"></i>Báo cáo</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/trips" class="nav-link"><i class="fas fa-flag-checkered"></i>Quản lý chuyến</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/settings" class="nav-link"><i class="fas fa-cog"></i>Cài đặt</a></li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <h1>
+                    <i class="fas fa-chart-line"></i>
+                    Báo Cáo Tổng Quan Hệ Thống
+                </h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i>
+                        Làm mới
+                    </button>
+                    <button class="btn btn-primary" onclick="exportReport()">
+                        <i class="fas fa-download"></i>
+                        Xuất báo cáo
+                    </button>
+                    <form method="get" action="/logout" style="display:inline;">
+                        <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i>Đăng xuất</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-bus"></i>
+                        </div>
+                    </div>
+                    <div class="stat-title">Tổng số xe buýt</div>
+                    <div class="stat-value" id="totalVehicles">0</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span id="activeVehicles">0</span> đang hoạt động
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon green">
+                            <i class="fas fa-user-tie"></i>
+                        </div>
+                    </div>
+                    <div class="stat-title">Tổng số tài xế</div>
+                    <div class="stat-value" id="totalDrivers">0</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span id="activeDrivers">0</span> đang làm việc
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-route"></i>
+                        </div>
+                    </div>
+                    <div class="stat-title">Tổng số tuyến đường</div>
+                    <div class="stat-value" id="totalRoutes">0</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-check-circle"></i>
+                        Đang hoạt động
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon red">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                    </div>
+                    <div class="stat-title">Tổng số chuyến đi</div>
+                    <div class="stat-value" id="totalTrips">0</div>
+                    <div class="stat-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span id="completedTrips">0</span> hoàn thành
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="charts-grid">
+                <!-- Vehicle Status Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Trạng thái xe buýt</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="vehicleChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Trip Status Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Trạng thái chuyến đi</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="tripChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Driver Status Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Trạng thái tài xế</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="driverChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trend Chart - Full Width -->
+            <div class="charts-grid">
+                <div class="chart-card full-width">
+                    <div class="chart-header">
+                        <h2 class="chart-title">Xu hướng hoạt động theo các ngày gần đây</h2>
+                        <div class="custom-dropdown">
+                            <div class="dropdown-trigger" id="trendFilterTrigger">
+                                <span id="trendFilterText">7 ngày</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="dropdown-options" id="trendFilterOptions">
+                                <div class="dropdown-option selected" data-value="7days">7 ngày</div>
+                                <div class="dropdown-option" data-value="30days">30 ngày</div>
+                                <div class="dropdown-option" data-value="90days">90 ngày</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container" style="height: 400px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Constants
+        // Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+        const AUTH_API = `${GATEWAY_BASE}/api/auth/me`;
+        const DASHBOARD_ADMIN_API = `${GATEWAY_BASE}/api/dashboard/admin`;
+        // Thêm base cho Report
+        const REPORT_API = `${GATEWAY_BASE}/api/reports`;
+
+        // === 2. UTILS ===
+        async function apiFetch(url, options = {}) {
+            const opts = Object.assign({ credentials: 'include' }, options);
+            if (opts.body && !opts.headers) opts.headers = { 'Content-Type': 'application/json' };
+            try {
+                console.log(`Calling API: ${url}`); // Debug log
+                const res = await fetch(url, opts);
+                if (res.status === 401) { window.location.href = '/login'; return null; }
+                if (!res.ok) {
+                    console.error(`API Error ${res.status}: ${res.statusText}`);
+                    return null;
+                }
+                return await res.json().catch(() => ({}));
+            } catch (e) {
+                console.error("Network error:", e);
+                return null;
+            }
+        }
+
+        // === 3. USER INFO (SIDEBAR) ===
+        async function loadCurrentUserForSidebar() {
+            const sidebarFullNameEl = document.getElementById('sidebarFullName');
+            const sidebarRoleEl = document.getElementById('sidebarRole');
+            
+            let user = null;
+            // Thử lấy từ Dashboard API trước (ưu tiên)
+            try {
+                const dashRes = await apiFetch(DASHBOARD_ADMIN_API);
+                if (dashRes && dashRes.success && dashRes.user) {
+                    user = dashRes.user;
+                }
+            } catch (e) {}
+            
+            // Fallback sang Auth API
+            if (!user) {
+                const authRes = await apiFetch(AUTH_API);
+                if (authRes && authRes.success) {
+                    user = authRes.data || authRes.user || authRes;
+                }
+            }
+            
+            if (user) {
+                const fullName = user.fullName || user.username || 'Admin';
+                const role = user.role || user.roles || '';
+                if (sidebarFullNameEl) sidebarFullNameEl.textContent = fullName;
+                if (sidebarRoleEl) sidebarRoleEl.textContent = Array.isArray(role) ? role.join(', ') : role;
+            }
+        }
+
+        // === 4. REPORT LOGIC ===
+        let vehicleChart, tripChart, driverChart, trendChart;
+
+        // Tải toàn bộ dữ liệu báo cáo
+        async function loadReportData(trendDays = 7) {
+            try {
+                // Gọi song song để tối ưu tốc độ (Optional, nhưng tốt hơn)
+                // Lưu ý: Phải dùng REPORT_API (có chứa GATEWAY_BASE)
+                
+                const pOverview = apiFetch(`${REPORT_API}/overview`);
+                const pStats = apiFetch(`${REPORT_API}/statistics`);
+                const pTrends = apiFetch(`${REPORT_API}/trends?days=${trendDays}`);
+
+                const [overview, statistics, trends] = await Promise.all([pOverview, pStats, pTrends]);
+
+                if (overview) updateOverviewStats(overview);
+                if (statistics) updateCharts(statistics);
+                if (trends) updateTrendChart(trends);
+
+            } catch (error) {
+                console.error('Error loading report data:', error);
+            }
+        }
+
+        function updateOverviewStats(data) {
+            animateValue('totalVehicles', 0, data.totalVehicles || 0, 1000);
+            animateValue('totalDrivers', 0, data.totalDrivers || 0, 1000);
+            animateValue('totalRoutes', 0, data.totalRoutes || 0, 1000);
+            animateValue('totalTrips', 0, data.totalTrips || 0, 1000);
+            
+            document.getElementById('activeVehicles').textContent = data.activeVehicles || 0;
+            document.getElementById('activeDrivers').textContent = data.activeDrivers || 0;
+            document.getElementById('completedTrips').textContent = data.completedTrips || 0;
+        }
+
+        function animateValue(id, start, end, duration) {
+            const element = document.getElementById(id);
+            if(!element) return;
+            const range = end - start;
+            const increment = range / (duration / 16);
+            let current = start;
+            const timer = setInterval(() => {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                element.textContent = Math.floor(current);
+            }, 16);
+        }
+
+        // --- CHARTS SETUP ---
+        const colors = {
+            primary: '#667eea', success: '#48bb78', warning: '#ed8936',
+            danger: '#f56565', info: '#4299e1', purple: '#764ba2'
+        };
+
+        function generateColors(count) {
+            const base = [colors.primary, colors.success, colors.warning, colors.danger, colors.info, colors.purple];
+            const res = [];
+            for (let i = 0; i < count; i++) res.push(base[i % base.length]);
+            return res;
+        }
+
+        function updateCharts(statistics) {
+            if(!statistics) return;
+            createDoughnutChart('vehicleChart', statistics.vehiclesByStatus || {}, 'Xe buýt');
+            createPieChart('tripChart', statistics.tripsByStatus || {}, 'Chuyến đi');
+            createDoughnutChart('driverChart', statistics.driversByStatus || {}, 'Tài xế');
+        }
+
+        function createDoughnutChart(canvasId, data, label) {
+            const ctxEl = document.getElementById(canvasId);
+            if(!ctxEl) return;
+            const ctx = ctxEl.getContext('2d');
+            if (window[canvasId + 'Instance']) window[canvasId + 'Instance'].destroy();
+
+            const labels = Object.keys(data);
+            const values = Object.values(data);
+
+            window[canvasId + 'Instance'] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: values,
+                        backgroundColor: generateColors(labels.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        function createPieChart(canvasId, data, label) {
+            const ctxEl = document.getElementById(canvasId);
+            if(!ctxEl) return;
+            const ctx = ctxEl.getContext('2d');
+            
+            // Xóa biểu đồ cũ nếu tồn tại
+            if (window[canvasId + 'Instance']) {
+                window[canvasId + 'Instance'].destroy();
+            }
+
+            const labels = Object.keys(data);
+            const values = Object.values(data);
+
+            // --- PHẦN SỬA MÀU Ở ĐÂY ---
+            let backgroundColors;
+            
+            if (canvasId === 'tripChart') {
+                // Map màu thủ công cho biểu đồ Chuyến đi
+                backgroundColors = labels.map(status => {
+                    const s = status.trim(); // Xóa khoảng trắng thừa nếu có
+                    
+                    if (s === 'Đang chạy') {
+                        return colors.success; // Xanh lá
+                    } 
+                    else if (s === 'Đã hủy') {
+                        return colors.danger;  // Đỏ
+                    } 
+                    else if (s === 'Chưa chạy') {
+                        return colors.warning; // Cam
+                    } 
+                    else if (s === 'Hoàn thành') {
+                        return colors.primary; // Xanh tím
+                    } 
+                    else {
+                        return '#cbd5e0'; // Màu xám cho trường hợp lạ
+                    }
+                });
+            } else {
+                // Các biểu đồ khác (Xe, Tài xế) vẫn dùng màu tự động
+                backgroundColors = generateColors(labels.length);
+            }
+            // ---------------------------
+
+            window[canvasId + 'Instance'] = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: values,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTrendChart(trends) {
+            const ctxEl = document.getElementById('trendChart');
+            if(!ctxEl) return;
+            const ctx = ctxEl.getContext('2d');
+            if (trendChart) trendChart.destroy();
+
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trends.dates || [],
+                    datasets: [
+                        {
+                            label: 'Chuyến đi',
+                            data: trends.tripTrend || [],
+                            borderColor: colors.primary,
+                            backgroundColor: colors.primary + '20',
+                            tension: 0.4, fill: true
+                        },
+                        {
+                            label: 'Xe hoạt động',
+                            data: trends.vehicleTrend || [],
+                            borderColor: colors.success,
+                            backgroundColor: colors.success + '20',
+                            tension: 0.4, fill: true
+                        },
+                        {
+                            label: 'Tài xế',
+                            data: trends.driverTrend || [],
+                            borderColor: colors.warning,
+                            backgroundColor: colors.warning + '20',
+                            tension: 0.4, fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+        }
+
+        // === 5. INTERACTION & EVENTS ===
+        
+        function refreshData() {
+            const btn = event.target.closest('.btn');
+            const icon = btn ? btn.querySelector('i') : null;
+            if(icon) icon.classList.add('fa-spin');
+            
+            // Mặc định refresh 7 ngày, hoặc lấy từ UI nếu có
+            loadReportData(7).then(() => {
+                setTimeout(() => { if(icon) icon.classList.remove('fa-spin'); }, 500);
+            });
+        }
+
+        function exportReport() {
+            alert('Chức năng xuất báo cáo đang được phát triển!');
+        }
+
+        function handleTrendFilterChange(value) {
+            let days = 7;
+            if (value === '30days') days = 30;
+            else if (value === '90days') days = 90;
+            
+            // Fix: Dùng apiFetch và REPORT_API thay vì fetch trần
+            apiFetch(`${REPORT_API}/trends?days=${days}`)
+                .then(trends => {
+                    if(trends) updateTrendChart(trends);
+                })
+                .catch(error => console.error('Error loading trend data:', error));
+        }
+
+        // Custom Dropdown logic
+        function initializeCustomDropdown() {
+            const trigger = document.getElementById('trendFilterTrigger');
+            const options = document.getElementById('trendFilterOptions');
+            const text = document.getElementById('trendFilterText');
+            const arrow = trigger ? trigger.querySelector('.dropdown-arrow') : null;
+            if(!trigger || !options) return;
+
+            trigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isOpen = options.classList.contains('open');
+                document.querySelectorAll('.dropdown-options').forEach(opt => {
+                    opt.classList.remove('open');
+                    const arr = opt.previousElementSibling.querySelector('.dropdown-arrow');
+                    if(arr) arr.classList.remove('open');
+                });
+                if (!isOpen) {
+                    options.classList.add('open');
+                    if(arrow) arrow.classList.add('open');
+                }
+            });
+
+            options.addEventListener('click', function(e) {
+                if (e.target.classList.contains('dropdown-option')) {
+                    const value = e.target.dataset.value;
+                    const displayText = e.target.textContent;
+                    options.querySelectorAll('.dropdown-option').forEach(opt => opt.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                    text.textContent = displayText;
+                    options.classList.remove('open');
+                    if(arrow) arrow.classList.remove('open');
+                    handleTrendFilterChange(value);
+                }
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!trigger.contains(e.target) && !options.contains(e.target)) {
+                    options.classList.remove('open');
+                    if(arrow) arrow.classList.remove('open');
+                }
+            });
+        }
+
+        // === INIT ===
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentUserForSidebar();
+            initializeCustomDropdown();
+            loadReportData(); // Mặc định load
+        });
+    </script>
+</body>
+</html>

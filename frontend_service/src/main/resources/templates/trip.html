@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý chuyến</title>
+    <script>
+      // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+      const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/trip.css">
+    <!-- Flatpickr for modern datetime popup -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css" />
+    <script src="/js/role-guard.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="robots" content="noindex">
+    <meta property="og:title" content="Quản lý chuyến">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="vi_VN">
+    <meta name="color-scheme" content="light">
+</head>
+<body>
+<div class="dashboard admin-dashboard" style="display:flex;">
+    <aside class="sidebar">
+        <div class="logo">
+            <i class="fas fa-bus"></i>
+            <h2>Bus Management</h2>
+        </div>
+        <div class="user-info">
+            <div class="user-avatar"><i class="fas fa-user-shield"></i></div>
+            <h3 id="sidebarFullName"></h3>
+            <p id="sidebarRole"></p>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="/dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/user_mana" class="nav-link"><i class="fas fa-users"></i>Quản lý người dùng</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE, ADMIN"><a href="/buses" class="nav-link"><i class="fas fa-bus"></i>Quản lý xe buýt</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/drivers" class="nav-link"><i class="fas fa-id-card"></i>Quản lý tài xế</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/routes" class="nav-link"><i class="fas fa-route"></i>Quản lý tuyến đường</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾ, CHỦ NHÀ XE"><a href="/schedules" class="nav-link"><i class="fas fa-calendar"></i>Lịch trình</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/reports" class="nav-link"><i class="fas fa-chart-bar"></i>Báo cáo</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/trips" class="nav-link active"><i class="fas fa-flag-checkered"></i>Quản lý chuyến</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/settings" class="nav-link"><i class="fas fa-cog"></i>Cài đặt</a></li>
+        </ul>
+    </aside>
+    <main class="main-content">
+        <div class="header">
+            <h1>Quản lý chuyến</h1>
+            <div style="display:flex;gap:1rem;align-items:center;">
+                <div class="notification-bell-container">
+                    <button id="notificationBellBtn" class="notification-bell" aria-label="Thông báo">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
+                    </button>
+                    <div class="notification-dropdown" id="notificationDropdown" style="display:none;">
+                        <div class="notification-header">
+                            <h3><i class="fas fa-bell"></i> Thông báo cập nhật chuyến</h3>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn-icon" id="clearReadBtn" title="Xóa thông báo đã đọc" aria-label="Xóa thông báo đã đọc">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                                <button class="close-btn" id="closeNotificationBtn" aria-label="Đóng">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <div class="notification-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <div>Đang tải...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <form method="get" action="/logout" style="display:inline;">
+                    <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i>Đăng xuất</button>
+                </form>
+            </div>
+        </div>
+        <div class="toolbar">
+            <h1><i class="fas fa-flag-checkered"></i>Danh sách chuyến</h1>
+            <div style="display:flex;gap:.5rem;">
+                <a href="#" id="btnAdd" class="action-btn btn-primary" data-deny-roles="ADMIN">Tạo chuyến</a>
+                <a href="#" id="btnExport" class="action-btn btn-primary" data-deny-roles="ADMIN">Export</a>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <div class="search-group">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Tìm theo tuyến / xe / tài xế">
+            </div>
+            <div class="modern-select" data-enhance-select>
+                <select id="statusFilter">
+                    <option value="">-- Trạng thái --</option>
+                    <option value="NOT_STARTED">Chưa chạy</option>
+                    <option value="IN_PROGRESS">Đang chạy</option>
+                    <option value="COMPLETED">Hoàn thành</option>
+                    <option value="CANCELLED">Hủy</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Trạng thái --</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+            <div class="modern-select" data-enhance-select>
+                <select id="routeFilter">
+                    <option value="">-- Tuyến --</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Tuyến --</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="trip-table">
+                <thead>
+                    <tr>
+                        <th>Tuyến</th>
+                        <th>Xe</th>
+                        <th>Tài xế</th>
+                        <th>BĐ kế hoạch</th>
+                        <th>KT kế hoạch</th>
+                        <th>BĐ thực tế</th>
+                        <th>KT thực tế</th>
+                        <th>Trạng thái</th>
+                        <th>Ghi chú</th>
+                        <th>Cập nhật</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tripTbody">
+                    <tr><td colspan="11" style="text-align:center;color:#64748b;">Đang tải...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: tạo/sửa chuyến -->
+<div class="modal" id="tripModal">
+    <div class="modal-content">
+        <h2 id="tripModalTitle"><i class="fas fa-flag-checkered"></i><span>Tạo chuyến</span></h2>
+        <form id="tripForm">
+            <input type="hidden" id="tripId" />
+            <div class="modal-grid">
+                <div>
+                    <label for="routeId">Tuyến</label>
+                    <div class="custom-autocomplete" id="routeAutocomplete">
+                        <input type="text" id="routeIdInput" placeholder="-- Tìm tuyến --" autocomplete="off" required />
+                        <button type="button" class="autocomplete-toggle" aria-label="Mở danh sách"><i class="fas fa-chevron-down"></i></button>
+                        <div class="autocomplete-dropdown" id="routeDropdown">
+                            <div class="autocomplete-list"></div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="routeId" />
+                </div>
+                <div>
+                    <label for="vehicleId">Xe</label>
+                    <div class="modern-select" data-enhance-select>
+                        <select id="vehicleId" required></select>
+                        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Chọn xe</span><span class="ms-caret"></span></button>
+                        <ul class="ms-dropdown" role="listbox"></ul>
+                    </div>
+                </div>
+                <div>
+                    <label for="driverId">Tài xế</label>
+                    <div class="modern-select" data-enhance-select>
+                        <select id="driverId" required></select>
+                        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Chọn tài xế</span><span class="ms-caret"></span></button>
+                        <ul class="ms-dropdown" role="listbox"></ul>
+                    </div>
+                </div>
+                <div>
+                    <label for="plannedStart">BĐ kế hoạch</label>
+                  <div class="dt-modern" data-wrap>
+                    <input type="datetime-local" id="plannedStart" data-input required />
+                    <button type="button" class="dt-cal-btn" title="Mở lịch" aria-label="Mở lịch" data-toggle>
+                      <i class="fa-regular fa-calendar"></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                    <label for="plannedEnd">KT kế hoạch</label>
+                  <div class="dt-modern" data-wrap>
+                    <input type="datetime-local" id="plannedEnd" data-input required />
+                    <button type="button" class="dt-cal-btn" title="Mở lịch" aria-label="Mở lịch" data-toggle>
+                      <i class="fa-regular fa-calendar"></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                    <label for="actualStart">BĐ thực tế</label>
+                  <div class="dt-modern" data-wrap>
+                    <input type="datetime-local" id="actualStart" data-input />
+                    <button type="button" class="dt-cal-btn" title="Mở lịch" aria-label="Mở lịch" data-toggle>
+                      <i class="fa-regular fa-calendar"></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                    <label for="actualEnd">KT thực tế</label>
+                  <div class="dt-modern" data-wrap>
+                    <input type="datetime-local" id="actualEnd" data-input />
+                    <button type="button" class="dt-cal-btn" title="Mở lịch" aria-label="Mở lịch" data-toggle>
+                      <i class="fa-regular fa-calendar"></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                    <label for="status">Trạng thái</label>
+                    <div class="modern-select" data-enhance-select>
+                        <select id="status">
+                            <option value="NOT_STARTED">Chưa chạy</option>
+                            <option value="IN_PROGRESS">Đang chạy</option>
+                            <option value="COMPLETED">Hoàn thành</option>
+                            <option value="CANCELLED">Hủy</option>
+                        </select>
+                        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Chưa chạy</span><span class="ms-caret"></span></button>
+                        <ul class="ms-dropdown" role="listbox"></ul>
+                    </div>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label for="note">Ghi chú</label>
+                    <textarea id="note" placeholder="Ghi chú (nếu có)"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="cancelTripBtn" class="btn-cancel">Hủy</button>
+                <button type="submit" class="btn-primary">Lưu</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="notifyBox"></div>
+
+<script>
+// API base
+// Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+const TRIP_API = `${GATEWAY_BASE}/api/trips`;
+const ROUTE_API = `${GATEWAY_BASE}/api/routes`;
+const VEHICLE_API = `${GATEWAY_BASE}/api/vehicles`;
+const DRIVER_API = `${GATEWAY_BASE}/api/drivers`;
+const AUTH_API = `${GATEWAY_BASE}/api/auth/me`;
+const NOTIFICATION_API = `${GATEWAY_BASE}/api/notifications`;
+
+// Utils
+async function apiFetch(url, options = {}) {
+  const opts = Object.assign({ credentials: 'include' }, options);
+  if (opts.body && !opts.headers) opts.headers = { 'Content-Type': 'application/json' };
+  try {
+    const res = await fetch(url, opts);
+    if (res.status === 401) { window.location.href = '/login'; return null; }
+    const body = await res.json().catch(() => ({}));
+    // Normalize: if a service returns a bare array, wrap it as a successful ApiResponse-like object
+    if (Array.isArray(body)) return { success: true, data: body };
+    return body;
+  } catch (e) {
+    console.error(e); showNotify('Không thể kết nối máy chủ', 'error'); return null;
+  }
+}
+function showNotify(message, type = 'info', autoHideMs = 3000) {
+  const box = document.getElementById('notifyBox'); if (!box) return;
+  const colors = { success: '#16a34a', error: '#dc2626', info: '#2563eb', warn: '#d97706' };
+  box.style.background = colors[type] || colors.info; box.textContent = message; box.style.display = 'block'; box.style.opacity = '1';
+  if (box._timer) clearTimeout(box._timer);
+  if (autoHideMs > 0) box._timer = setTimeout(() => { box.style.transition = 'opacity .4s'; box.style.opacity = '0'; setTimeout(() => { box.style.display = 'none'; box.style.transition = ''; }, 400); }, autoHideMs);
+}
+function escapeHtml(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function toDatetimeLocalInput(val){
+  if(!val) return '';
+  try{
+    let s = String(val);
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(s)) s = s.replace(' ', 'T');
+    const d = new Date(s);
+    if (isNaN(d)) return '';
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }catch(_){ return ''; }
+}
+// Định dạng cho các cột BĐ/KT kế hoạch & thực tế: hiển thị giờ LOCAL đúng như người dùng nhập.
+function formatTripTime(val){
+  if (!val) return '';
+  try {
+    let s = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) s = s.replace(' ', 'T');
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s)) s = s.replace(' ', 'T')+':00';
+    const d = new Date(s);
+    if (isNaN(d)) return String(val);
+    const pad = n => String(n).padStart(2,'0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+  } catch(_) { return String(val); }
+}
+
+// Định dạng riêng cho cột "Cập nhật": giữ nguyên logic cũ (UTC/GMT0) để không bị lệch khi so sánh log backend.
+function formatUpdatedAt(val){
+  if (!val) return '';
+  try {
+    let s = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) s = s.replace(' ', 'T');
+    const d = new Date(s);
+    if (isNaN(d)) return String(val);
+    const fmt = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Etc/GMT-0', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    const parts = Object.fromEntries(fmt.formatToParts(d).map(p => [p.type, p.value]));
+    return `${parts.hour}:${parts.minute}:${parts.second} ${parts.day}/${parts.month}/${parts.year}`;
+  } catch(_) { return String(val); }
+}
+
+// Sidebar user info
+const sidebarFullNameEl = document.getElementById('sidebarFullName');
+const sidebarRoleEl = document.getElementById('sidebarRole');
+function resolveUserInfo(resp){
+  const u = (resp && (resp.data || resp.user)) || resp || {};
+  const fullName = u.fullName || u.fullname || u.name || u.username || u.email || 'User';
+  const rawRoles = u.role || u.roles || u.authorities || [];
+  const roles = Array.isArray(rawRoles)
+    ? rawRoles.map(x => typeof x === 'string' ? x : (x.name || x.role || x.authority || '')).filter(Boolean)
+    : (typeof rawRoles === 'string' ? [rawRoles] : []);
+  return { fullName, roles };
+}
+async function loadCurrentUserForSidebar(){
+  const authRes = await apiFetch(AUTH_API);
+  if(!authRes) return;
+  const { fullName, roles } = resolveUserInfo(authRes);
+  if(sidebarFullNameEl) sidebarFullNameEl.textContent = fullName;
+  if(sidebarRoleEl) sidebarRoleEl.textContent = roles.join(', ');
+  window.__userRole = roles.join(', ');
+  // Store current user ID for tracking updates
+  window.__currentUserId = authRes?.user?.id || null;
+  if(typeof window.applyDenyRoles === 'function') window.applyDenyRoles(window.__userRole);
+}
+document.addEventListener('DOMContentLoaded', loadCurrentUserForSidebar);
+
+// DOM refs
+const btnAdd = document.getElementById('btnAdd');
+const btnExport = document.getElementById('btnExport');
+const searchInput = document.getElementById('searchInput');
+const statusFilter = document.getElementById('statusFilter');
+const routeFilter = document.getElementById('routeFilter');
+const tripTbody = document.getElementById('tripTbody');
+const pagination = document.getElementById('pagination');
+
+const tripModal = document.getElementById('tripModal');
+const tripForm = document.getElementById('tripForm');
+const cancelTripBtn = document.getElementById('cancelTripBtn');
+const tripIdInput = document.getElementById('tripId');
+const routeIdInput = document.getElementById('routeIdInput');
+const routeIdHidden = document.getElementById('routeId');
+const vehicleSelect = document.getElementById('vehicleId');
+const driverSelect = document.getElementById('driverId');
+const plannedStartInput = document.getElementById('plannedStart');
+const plannedEndInput = document.getElementById('plannedEnd');
+const actualStartInput = document.getElementById('actualStart');
+const actualEndInput = document.getElementById('actualEnd');
+const statusInput = document.getElementById('status');
+const noteInput = document.getElementById('note');
+
+let allTrips = [], routes = [], vehicles = [], drivers = [];
+let routeMap = new Map(), vehicleMap = new Map(), driverMap = new Map();
+let currentPage = 1, pageSize = 10;
+
+const StatusLabels = {
+  NOT_STARTED: 'Chưa chạy',
+  IN_PROGRESS: 'Đang chạy',
+  COMPLETED: 'Hoàn thành',
+  CANCELLED: 'Hủy'
+};
+
+function statusBadge(st){
+  const code = StatusLabels[st] ? st : 'NOT_STARTED';
+  const text = StatusLabels[st] || st || 'Chưa chạy';
+  return `<span class="status-badge status-${code}">${escapeHtml(text)}</span>`;
+}
+
+function normalizeText(s){
+  const str = s==null ? '' : String(s);
+  try { return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); } catch(_) { return str.toLowerCase(); }
+}
+function applyFilters(){
+  const qRaw=(searchInput?.value||'').trim();
+  const q=normalizeText(qRaw);
+  const st=statusFilter?.value||'';
+  const rf=routeFilter?.value||'';
+  return allTrips.filter(t=>{
+  const routeName = routeMap.get(t.routeId)?.name || t.routeName || ('Tuyến '+t.routeId);
+  const vehicleName = vehicleMap.get(t.vehicleId)?.licensePlate || vehicleMap.get(t.vehicleId)?.plateNumber || t.vehiclePlate || ('Xe '+t.vehicleId);
+  const driverName = driverMap.get(t.driverId)?.fullName || t.driverName || ('Tài xế '+t.driverId);
+    let ok=true;
+    if(q){
+      ok = normalizeText(routeName).includes(q)
+        || normalizeText(vehicleName).includes(q)
+        || normalizeText(driverName).includes(q);
+    }
+    if(ok && st){ ok = String(t.status)===st; }
+    if(ok && rf){ ok = String(t.routeId)===String(rf); }
+    return ok;
+  });
+}
+
+function renderPagination(total){
+  let html='';
+  for(let i=1;i<=total;i++) html+=`<button class="${i===currentPage?'active':''}" onclick="gotoPage(${i})" ${i===currentPage?'aria-current="page"':''}>${i}</button>`;
+  pagination.innerHTML=html;
+}
+function gotoPage(p){ currentPage=p; renderTable(); }
+
+function renderTable(){
+  const filtered = applyFilters();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  if(currentPage>totalPages) currentPage = totalPages;
+  const start=(currentPage-1)*pageSize;
+  const rows = filtered.slice(start, start+pageSize).map(t=>{
+    const routeName = routeMap.get(t.routeId)?.name || t.routeName || '';
+    const vehicleName = (vehicleMap.get(t.vehicleId)?.licensePlate || vehicleMap.get(t.vehicleId)?.plateNumber || t.vehiclePlate || '');
+    const driverName = driverMap.get(t.driverId)?.fullName || t.driverName || '';
+    const updatedAt = t.updatedAt ? formatUpdatedAt(t.updatedAt) : '';
+    const soon = isWithinDays(t.plannedStart || t.actualStart, 10);
+    return `<tr class="${soon ? 'trip-soon' : ''}">
+      <td>${escapeHtml(routeName)}</td>
+      <td>${escapeHtml(vehicleName)}</td>
+      <td>${escapeHtml(driverName)}</td>
+      <td>${escapeHtml(formatTripTime(t.plannedStart))}</td>
+      <td>${escapeHtml(formatTripTime(t.plannedEnd))}</td>
+      <td>${escapeHtml(formatTripTime(t.actualStart))}</td>
+      <td>${escapeHtml(formatTripTime(t.actualEnd))}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td>${escapeHtml(t.note||'')}</td>
+      <td>${escapeHtml(formatUpdatedAt(t.updatedAt))}</td>
+      <td>
+        <button class="action-btn-inline" data-edit="${escapeHtml(t.id)}" data-deny-roles="ADMIN"><i class="fas fa-edit"></i>Sửa</button>
+        <button class="action-btn-inline danger" data-del="${escapeHtml(t.id)}" data-deny-roles="ADMIN"><i class="fas fa-trash"></i>Xóa</button>
+      </td>
+    </tr>`;
+  }).join('');
+  tripTbody.innerHTML = rows || '<tr><td colspan="11" style="text-align:center;color:#64748b;">Không có dữ liệu</td></tr>';
+  renderPagination(totalPages);
+  bindRowButtons();
+  if(window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+}
+
+// CRUD calls
+async function loadTrips(){
+  const res = await apiFetch(TRIP_API);
+  if(!res || !res.success){ showNotify('Lỗi tải dữ liệu chuyến', 'error'); allTrips=[]; renderTable(); return; }
+  const raw = res.data || [];
+  allTrips = raw.map(t=>({ ...t }));
+  // Sort trips DESC by effective time: use actualStart for IN_PROGRESS/COMPLETED, otherwise plannedStart
+  allTrips.sort((a,b)=>{
+    const ta = getEffectiveSortTimeMs(a);
+    const tb = getEffectiveSortTimeMs(b);
+    return tb - ta;
+  });
+  renderTable();
+}
+async function createTrip(payload){
+  // Include userId for tracking who updated the trip
+  if(window.__currentUserId) {
+    payload.userId = window.__currentUserId;
+  }
+
+  const res = await apiFetch(TRIP_API, { method:'POST', body: JSON.stringify(payload) });
+  if(res && res.success){ showNotify('Tạo chuyến thành công', 'success'); return true; }
+  showNotify(res?.error||'Tạo thất bại', 'error'); return false;
+}
+async function updateTrip(id, payload){
+  // Include userId for tracking who updated the trip
+  if(window.__currentUserId) {
+    payload.userId = window.__currentUserId;
+  }
+  const res = await apiFetch(`${TRIP_API}/${id}`, { method:'PUT', body: JSON.stringify(payload) });
+  if(res && res.success){ showNotify('Cập nhật thành công', 'success'); return true; }
+  showNotify(res?.error||'Cập nhật thất bại', 'error'); return false;
+}
+async function deleteTrip(id){
+  if(!confirm('Xóa chuyến ID '+id+'?')) return;
+  const res = await apiFetch(`${TRIP_API}/${id}`, { method:'DELETE' });
+  if(res && res.success){ showNotify('Đã xóa', 'success'); loadTrips(); } else showNotify(res?.error||'Xóa thất bại', 'error');
+}
+
+// Modal helpers
+function openTripModal(isEdit=false, t=null){
+  tripModal.classList.add('active');
+  const titleSpan = document.getElementById('tripModalTitle')?.querySelector('span');
+  if(titleSpan) titleSpan.textContent = isEdit ? 'Chỉnh sửa chuyến' : 'Tạo chuyến';
+  tripIdInput.value = t?.id ?? '';
+  // Set route autocomplete
+  if (routeIdInput && routeIdHidden) {
+    const routeIdVal = t?.routeId ?? '';
+    routeIdHidden.value = routeIdVal;
+    if(routeIdVal){
+      const info = routeMap.get(routeIdVal);
+      routeIdInput.value = info ? info.name : ('Tuyến '+routeIdVal);
+    } else {
+      routeIdInput.value = '';
+    }
+  }
+  if (vehicleSelect) vehicleSelect.value = t?.vehicleId ?? '';
+  if (driverSelect) {
+    driverSelect.value = t?.driverId ?? '';
+    if(isEdit && t?.driverId && ![...driverSelect.options].some(o=> String(o.value)===String(t.driverId))){
+      tripIdInput.value = t.id; // đánh dấu đang sửa
+      // Gọi bổ sung tài xế (kể cả đang nghỉ) để vẫn hiển thị trong dropdown
+      loadDrivers();
+      // Sau khi load lại, set lại selection
+      setTimeout(()=>{
+        driverSelect.value = t.driverId;
+        const root = driverSelect.closest('.modern-select');
+        if(root){ const tv = root.querySelector('.ms-value'); if(tv) tv.textContent = driverSelect.selectedOptions[0]?.textContent || 'Chọn tài xế'; }
+      }, 400);
+    }
+  }
+  plannedStartInput.value = toDatetimeLocalInput(t?.plannedStart) || '';
+  plannedEndInput.value = toDatetimeLocalInput(t?.plannedEnd) || '';
+  actualStartInput.value = toDatetimeLocalInput(t?.actualStart) || '';
+  actualEndInput.value = toDatetimeLocalInput(t?.actualEnd) || '';
+  statusInput.value = t?.status || 'NOT_STARTED';
+  noteInput.value = t?.note || '';
+  // sync modern-select labels (bỏ routeSelect)
+  [vehicleSelect, driverSelect, statusInput].forEach(sel => {
+    const root = sel?.closest('.modern-select'); if(!root) return;
+    const triggerVal = root.querySelector('.ms-value');
+    const selected = sel.selectedOptions[0];
+    if(triggerVal && selected) triggerVal.textContent = selected.textContent;
+    const msCtx = root._ms; const listEl = msCtx?.list || root.querySelector('.ms-dropdown');
+    if(listEl) [...listEl.querySelectorAll('.ms-option')].forEach(li => li.classList.toggle('active', li.dataset.value === sel.value));
+  });
+  // Initialize modern calendar pickers with current values
+  initTripDateTimePickers();
+}
+function closeTripModal(){ tripForm.reset(); tripModal.classList.remove('active'); }
+
+function bindRowButtons(){
+  document.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
+    const id = btn.getAttribute('data-edit'); const t = allTrips.find(x => String(x.id)===String(id)); if(t) openTripModal(true, t);
+  });
+  document.querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteTrip(btn.getAttribute('data-del')));
+}
+
+// Custom Route Autocomplete
+function initRouteAutocomplete(){
+  const container = document.getElementById('routeAutocomplete');
+  const input = document.getElementById('routeIdInput');
+  const hiddenInput = document.getElementById('routeId');
+  const dropdown = document.getElementById('routeDropdown');
+  const toggle = container?.querySelector('.autocomplete-toggle');
+  const listEl = dropdown?.querySelector('.autocomplete-list');
+  if(!container || !input || !hiddenInput || !dropdown || !listEl) return;
+
+  let highlightedIndex = -1;
+  let currentItems = [];
+
+  function renderList(items){
+    currentItems = items;
+    highlightedIndex = -1;
+    if(!items || items.length === 0){
+      listEl.innerHTML = '<div class="autocomplete-item no-results">Không tìm thấy tuyến</div>';
+      return;
+    }
+    const currentId = hiddenInput.value;
+    listEl.innerHTML = items.map((item, idx) => 
+      `<div class="autocomplete-item${String(item.id)===String(currentId)?' selected':''}" data-index="${idx}" data-id="${item.id}">${escapeHtml(item.name)}</div>`
+    ).join('');
+    // Bind click events
+    listEl.querySelectorAll('.autocomplete-item').forEach(el => {
+      if(!el.classList.contains('no-results')){
+        el.addEventListener('click', () => selectItem(parseInt(el.dataset.index,10)));
+      }
+    });
+  }
+
+  function selectItem(index){
+    if(index < 0 || index >= currentItems.length) return;
+    const item = currentItems[index];
+    input.value = item.name;
+    hiddenInput.value = item.id;
+    closeDropdown();
+  }
+
+  function openDropdown(){
+    container.classList.add('open');
+    const query = normalizeText(input.value.trim());
+    const filtered = query ? window.activeRoutes.filter(r => r.searchText.includes(query)) : window.activeRoutes;
+    renderList(filtered);
+  }
+
+  function closeDropdown(){
+    container.classList.remove('open');
+    highlightedIndex = -1;
+  }
+
+  function filterList(){
+    const query = normalizeText(input.value.trim());
+    const filtered = query ? window.activeRoutes.filter(r => r.searchText.includes(query)) : window.activeRoutes;
+    renderList(filtered);
+    if(!container.classList.contains('open')){
+      container.classList.add('open');
+    }
+  }
+
+  // Event: click toggle button
+  if(toggle){
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(container.classList.contains('open')){
+        closeDropdown();
+      } else {
+        input.focus();
+        openDropdown();
+      }
+    });
+  }
+
+  // Event: input typing
+  input.addEventListener('input', () => {
+    hiddenInput.value = ''; // Clear selection when typing
+    filterList();
+  });
+
+  // Event: focus on input
+  input.addEventListener('focus', () => {
+    openDropdown();
+  });
+
+  // Event: click outside to close
+  document.addEventListener('click', (e) => {
+    if(!container.contains(e.target)){
+      closeDropdown();
+    }
+  });
+
+  // Event: keyboard navigation
+  input.addEventListener('keydown', (e) => {
+    if(!container.classList.contains('open')) return;
+    
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      highlightedIndex = Math.min(highlightedIndex + 1, currentItems.length - 1);
+      updateHighlight();
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      highlightedIndex = Math.max(highlightedIndex - 1, -1);
+      updateHighlight();
+    } else if(e.key === 'Enter'){
+      e.preventDefault();
+      if(highlightedIndex >= 0){
+        selectItem(highlightedIndex);
+      } else if(currentItems.length === 1){
+        selectItem(0);
+      }
+    } else if(e.key === 'Escape'){
+      e.preventDefault();
+      closeDropdown();
+    }
+  });
+
+  function updateHighlight(){
+    listEl.querySelectorAll('.autocomplete-item').forEach((el, idx) => {
+      el.classList.toggle('highlighted', idx === highlightedIndex);
+    });
+    // Scroll into view
+    const highlighted = listEl.querySelector('.autocomplete-item.highlighted');
+    if(highlighted){
+      highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  // Validate on blur
+  input.addEventListener('blur', (e) => {
+    // Delay to allow click on dropdown item
+    setTimeout(() => {
+      if(input.value.trim() && !hiddenInput.value){
+        // If text entered but no valid selection, clear
+        input.value = '';
+        hiddenInput.value = '';
+      } else if(!input.value.trim()){
+        hiddenInput.value = '';
+      }
+    }, 200);
+  });
+}
+
+// Initialize after DOM ready
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', initRouteAutocomplete);
+} else {
+  initRouteAutocomplete();
+}
+
+// Events
+if(btnAdd) btnAdd.addEventListener('click', e=>{ e.preventDefault(); openTripModal(false); });
+if(btnExport) btnExport.addEventListener('click', e=>{ e.preventDefault(); exportCsv(); });
+if(cancelTripBtn) cancelTripBtn.addEventListener('click', closeTripModal);
+if(searchInput) searchInput.addEventListener('input', ()=>{ currentPage=1; renderTable(); });
+if(statusFilter) statusFilter.addEventListener('change', ()=>{ currentPage=1; renderTable(); });
+if(routeFilter) routeFilter.addEventListener('change', ()=>{ currentPage=1; renderTable(); });
+if(tripForm){
+  tripForm.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const id = tripIdInput.value;
+    const payload = {
+      routeId: routeIdHidden.value ? parseInt(routeIdHidden.value,10) : null,
+      vehicleId: vehicleSelect.value ? parseInt(vehicleSelect.value,10) : null,
+      driverId: driverSelect.value ? parseInt(driverSelect.value,10) : null,
+      plannedStart: plannedStartInput.value ? plannedStartInput.value+':00' : null,
+      plannedEnd: plannedEndInput.value ? plannedEndInput.value+':00' : null,
+      actualStart: actualStartInput.value ? actualStartInput.value+':00' : null,
+      actualEnd: actualEndInput.value ? actualEndInput.value+':00' : null,
+      status: statusInput.value || 'NOT_STARTED',
+      note: noteInput.value || ''
+    };
+    // Basic time ordering validation
+    if(payload.plannedStart && payload.plannedEnd){
+      const ps = Date.parse(payload.plannedStart.replace(' ','T'));
+      const pe = Date.parse(payload.plannedEnd.replace(' ','T'));
+      if(!isNaN(ps) && !isNaN(pe) && ps >= pe){
+        showNotify('Thời gian kế hoạch không hợp lệ (KT phải sau BĐ)', 'warn');
+        return;
+      }
+    }
+    // Conflict detection for vehicle planned range
+    if(payload.vehicleId && payload.plannedStart && payload.plannedEnd){
+      const conflictIds = findVehicleConflicts(payload.vehicleId, payload.plannedStart, payload.plannedEnd, id || null);
+      if(conflictIds.includes('TIME_RANGE_INVALID')){
+        showNotify('Khoảng thời gian không hợp lệ', 'error');
+        return;
+      }
+      if(conflictIds.length){
+        highlightConflictingRows(conflictIds);
+        showNotify('Xung đột với chuyến: '+ conflictIds.join(', '), 'error');
+        return; // block submit
+      } else {
+        highlightConflictingRows([]); // clear previous
+      }
+    }
+    let ok; if(id){ ok = await updateTrip(id, payload); } else ok = await createTrip(payload);
+    if(ok){ closeTripModal(); await loadTrips(); }
+  });
+}
+
+// Export CSV
+function exportCsv(){
+  const filtered = applyFilters();
+  const header = ['id','route','vehicle','driver','plannedStart','plannedEnd','actualStart','actualEnd','status','note','updatedAt'];
+  const lines = [header.join(',')].concat(filtered.map(t=> {
+    const record = {
+      id: t.id ?? '',
+      route: routeMap.get(t.routeId)?.name || t.routeName || '',
+  vehicle: vehicleMap.get(t.vehicleId)?.licensePlate || vehicleMap.get(t.vehicleId)?.plateNumber || t.vehiclePlate || ('Xe '+t.vehicleId),
+  driver: driverMap.get(t.driverId)?.fullName || t.driverName || ('Tài xế '+t.driverId),
+      plannedStart: t.plannedStart ? formatTripTime(t.plannedStart) : '',
+      plannedEnd: t.plannedEnd ? formatTripTime(t.plannedEnd) : '',
+      actualStart: t.actualStart ? formatTripTime(t.actualStart) : '',
+      actualEnd: t.actualEnd ? formatTripTime(t.actualEnd) : '',
+      status: StatusLabels[t.status] || t.status || '',
+      note: t.note || '',
+      updatedAt: t.updatedAt ? formatUpdatedAt(t.updatedAt) : ''
+    };
+    return header.map(h => `"${(record[h]??'').toString().replace(/"/g,'""')}"`).join(',');
+  }));
+  const blob = new Blob(["\uFEFF"+lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='trips.csv'; a.click();
+}
+
+// Modern Select enhancer
+function enhanceModernSelect(root){
+  const native = root.querySelector('select'); const trigger=root.querySelector('.ms-trigger'); const list=root.querySelector('.ms-dropdown');
+  if(!native||!trigger||!list) return; const inModal = !!root.closest('.modal'); root._ms = { native, trigger, list };
+  function build(){ list.innerHTML=''; [...native.options].forEach(opt=>{ const li=document.createElement('li'); li.className='ms-option'+(opt.selected?' active':''); li.dataset.value=opt.value; li.textContent=opt.textContent; li.role='option'; li.tabIndex=-1; li.onclick=()=>selectValue(opt.value,true); list.appendChild(li); }); if(!native.options.length) list.innerHTML='<li class="ms-empty">Không có lựa chọn</li>'; }
+  function selectValue(v, close){ native.value=v; const t= native.selectedOptions[0]?native.selectedOptions[0].textContent:''; trigger.querySelector('.ms-value').textContent=t; [...list.children].forEach(li=>li.classList.toggle('active', li.dataset.value===v)); native.dispatchEvent(new Event('change',{bubbles:true})); if(close) closeDropdown(); }
+  function openDropdown(){ root.classList.add('open'); trigger.setAttribute('aria-expanded','true'); const t=native.selectedOptions[0]?native.selectedOptions[0].textContent:''; const v=native.value; trigger.querySelector('.ms-value').textContent=t; [...list.querySelectorAll('.ms-option')].forEach(li=>li.classList.toggle('active', li.dataset.value===v)); position(); if(list._ported) list.classList.add('show'); document.addEventListener('click', outside); const act=list.querySelector('.ms-option.active'); if(act) try{ act.scrollIntoView({block:'nearest'});}catch(_){} }
+  function closeDropdown(){ root.classList.remove('open'); trigger.setAttribute('aria-expanded','false'); if(list._ported) list.classList.remove('show'); document.removeEventListener('click', outside); }
+  function outside(e){ if(root.contains(e.target)) return; if(list.contains(e.target)) return; closeDropdown(); }
+  function toggle(){ root.classList.contains('open')? closeDropdown(): openDropdown(); }
+  function position(){ const rect=trigger.getBoundingClientRect(); if(inModal){ list.style.position='absolute'; list.style.top='100%'; list.style.left='0'; list.style.width='100%'; return; } if(!list._ported){ list._originalParent=root; document.body.appendChild(list); list._ported=true; list.style.position='absolute'; list.classList.add('ms-floating'); } list.style.width=Math.round(rect.width)+'px'; const prevO=list.style.opacity, prevT=list.style.transform; list.style.opacity='0'; list.style.transform='translateY(0) scale(1)'; const dr=list.getBoundingClientRect(); const preferBelow = (window.innerHeight-rect.bottom) > dr.height+32 || rect.top < dr.height; let top = preferBelow? (window.scrollY+rect.bottom+6) : (window.scrollY+rect.top-dr.height-6); let left=window.scrollX+rect.left; const margin=8; const maxLeft=window.scrollX+window.innerWidth-dr.width-margin; const minLeft=window.scrollX+margin; left=Math.max(minLeft, Math.min(left, maxLeft)); if(top<(window.scrollY+margin)) top=window.scrollY+rect.bottom+6; list.style.top=top+'px'; list.style.left=left+'px'; list.style.opacity=prevO; list.style.transform=prevT; }
+  window.addEventListener('resize', ()=>{ if(root.classList.contains('open')) position(); });
+  window.addEventListener('scroll', ()=>{ if(root.classList.contains('open')) position(); }, true);
+  trigger.addEventListener('click', toggle);
+  trigger.addEventListener('keydown', e=>{ if(['Enter',' ','ArrowDown'].includes(e.key)){ e.preventDefault(); openDropdown(); const first=list.querySelector('.ms-option'); first && first.focus(); } });
+  list.addEventListener('keydown', e=>{ const focusable=[...list.querySelectorAll('.ms-option')]; const idx=focusable.indexOf(document.activeElement); if(e.key==='ArrowDown'){ e.preventDefault(); const next=focusable[Math.min(focusable.length-1, idx+1)]||focusable[0]; next.focus(); } if(e.key==='ArrowUp'){ e.preventDefault(); const prev=focusable[Math.max(0, idx-1)]||focusable[focusable.length-1]; prev.focus(); } if(e.key==='Enter'){ e.preventDefault(); document.activeElement.click(); } if(e.key==='Escape'){ e.preventDefault(); closeDropdown(); trigger.focus(); } });
+  build(); trigger.querySelector('.ms-value').textContent = native.selectedOptions[0] ? native.selectedOptions[0].textContent : '';
+}
+document.querySelectorAll('[data-enhance-select]').forEach(enhanceModernSelect);
+
+// Load master data and populate selects
+async function loadRoutes(){
+  const res = await apiFetch(ROUTE_API);
+  if(!res || !res.success){ showNotify('Lỗi tải tuyến', 'error'); routes=[]; return; }
+  routes = res.data || [];
+  // Map đầy đủ cho hiển thị/bộ lọc
+  routeMap = new Map(routes.map(r=>[r.id, { id:r.id, name:(r.originName? (r.originName+' - '+r.destinationName) : (r.name||('Tuyến '+r.id))), active: r.active }]));
+  // Bộ lọc vẫn hiển thị tất cả tuyến
+  const filterOpts = '<option value="">-- Tuyến --</option>' + routes.map(r=>`<option value="${r.id}">${escapeHtml(r.originName? (r.originName+' - '+r.destinationName) : (r.name||('Tuyến '+r.id)))}${r.active===false? ' (ngừng)' : ''}</option>`).join('');
+  routeFilter.innerHTML = filterOpts;
+  // Lưu activeRoutes vào window để dùng cho autocomplete
+  window.activeRoutes = routes.filter(r => r.active === true).map(r=>{
+    return {
+      id: r.id,
+      name: r.originName? (r.originName+' - '+r.destinationName) : (r.name||('Tuyến '+r.id)),
+      searchText: normalizeText(r.originName? (r.originName+' - '+r.destinationName) : (r.name||('Tuyến '+r.id)))
+    };
+  });
+  // refresh modern-select list cho routeFilter
+  const root = routeFilter?.closest('.modern-select'); 
+  if(root){ 
+    const triggerVal = root.querySelector('.ms-value'); 
+    if(triggerVal) triggerVal.textContent = routeFilter.selectedOptions[0]?.textContent || '-- Tuyến --';
+    const msCtx = root._ms; 
+    const listEl = msCtx?.list || root.querySelector('.ms-dropdown'); 
+    if(listEl){ 
+      listEl.innerHTML=''; 
+      [...routeFilter.options].forEach(opt=>{ 
+        const li=document.createElement('li'); 
+        li.className='ms-option'+(opt.selected?' active':''); 
+        li.dataset.value=opt.value; 
+        li.textContent=opt.textContent; 
+        li.role='option'; 
+        li.tabIndex=-1; 
+        li.onclick=()=>{ 
+          routeFilter.value=opt.value; 
+          routeFilter.dispatchEvent(new Event('change',{bubbles:true})); 
+          triggerVal.textContent=opt.textContent; 
+          [...listEl.children].forEach(li=>li.classList.toggle('active', li.dataset.value===opt.value)); 
+          const trig=root.querySelector('.ms-trigger'); 
+          if(trig) trig.click(); 
+        }; 
+        listEl.appendChild(li); 
+      }); 
+    }
+  }
+}
+async function loadVehicles(){
+  // Lọc: chỉ hiển thị xe đang hoạt động (active=true) và trạng thái 'running'.
+  // Nếu đang sửa chuyến và xe hiện tại không thỏa điều kiện, vẫn thêm vào cuối để giữ lựa chọn (gắn nhãn cảnh báo).
+  const editingTripId = tripIdInput?.value ? parseInt(tripIdInput.value,10) : null;
+  const currentTrip = editingTripId ? allTrips.find(t=>t.id===editingTripId) : null;
+  const currentVehicleId = currentTrip?.vehicleId || null;
+  const res = await apiFetch(VEHICLE_API);
+  if(!res || !res.success){ showNotify('Lỗi tải xe', 'error'); vehicles=[]; return; }
+  vehicles = (res.data || []).filter(v => v && v.id != null);
+  vehicleMap = new Map(vehicles.map(v=>[v.id, v]));
+  const filtered = vehicles.filter(v => v.active === true && String(v.currentStatus).toLowerCase() === 'running');
+  // Nếu xe đang gán vào chuyến không nằm trong filtered, thêm nó (nếu tồn tại)
+  if(currentVehicleId && !filtered.some(v => v.id === currentVehicleId)){
+    const extra = vehicles.find(v => v.id === currentVehicleId);
+    if(extra) filtered.push(extra);
+  }
+  let formOpts = '<option value="">-- Chọn --</option>';
+  if(filtered.length === 0){
+    formOpts += '<option value="" disabled>Không có xe đang chạy</option>';
+  } else {
+    formOpts += filtered.map(v => {
+      const baseLabel = v.licensePlate || v.plateNumber || ('Xe '+v.id);
+      const warn = (v.active !== true) ? ' (không hoạt động)' : (String(v.currentStatus).toLowerCase() !== 'running' ? ' (không chạy)' : '');
+      return `<option value="${v.id}">${escapeHtml(baseLabel + warn)}</option>`;
+    }).join('');
+  }
+  vehicleSelect.innerHTML = formOpts;
+  const root = vehicleSelect.closest('.modern-select');
+  if(root){
+    const tv = root.querySelector('.ms-value');
+    if(tv) tv.textContent = vehicleSelect.selectedOptions[0]?.textContent || 'Chọn xe';
+    const listEl = root._ms?.list || root.querySelector('.ms-dropdown');
+    if(listEl){
+      listEl.innerHTML='';
+      [...vehicleSelect.options].forEach(opt=>{
+        const li=document.createElement('li');
+        li.className='ms-option'+(opt.selected?' active':'');
+        li.dataset.value=opt.value;
+        li.textContent=opt.textContent;
+        li.role='option';
+        li.tabIndex=-1;
+        li.onclick=()=>{
+          vehicleSelect.value=opt.value;
+          vehicleSelect.dispatchEvent(new Event('change',{bubbles:true}));
+          tv.textContent=opt.textContent;
+          [...listEl.children].forEach(li=>li.classList.toggle('active', li.dataset.value===opt.value));
+          const trig=root.querySelector('.ms-trigger'); if(trig) trig.click();
+        };
+        listEl.appendChild(li);
+      });
+    }
+  }
+}
+async function loadDrivers(){
+  const res = await apiFetch(DRIVER_API);
+  if(!res || !res.success){ showNotify('Lỗi tải tài xế', 'error'); drivers=[]; return; }
+  drivers = res.data || [];
+  driverMap = new Map(drivers.map(d=>[d.id, d]));
+  const formOpts = '<option value="">-- Chọn --</option>' + drivers.map(d=>`<option value="${d.id}">${escapeHtml(d.fullName || d.name || ('Tài xế '+d.id))}</option>`).join('');
+  driverSelect.innerHTML = formOpts;
+  const root = driverSelect.closest('.modern-select'); if(root){ const tv = root.querySelector('.ms-value'); if(tv) tv.textContent = driverSelect.selectedOptions[0]?.textContent || 'Chọn tài xế'; const listEl = root._ms?.list || root.querySelector('.ms-dropdown'); if(listEl){ listEl.innerHTML=''; [...driverSelect.options].forEach(opt=>{ const li=document.createElement('li'); li.className='ms-option'+(opt.selected?' active':''); li.dataset.value=opt.value; li.textContent=opt.textContent; li.role='option'; li.tabIndex=-1; li.onclick=()=>{ driverSelect.value=opt.value; driverSelect.dispatchEvent(new Event('change',{bubbles:true})); tv.textContent=opt.textContent; [...listEl.children].forEach(li=>li.classList.toggle('active', li.dataset.value===opt.value)); const trig=root.querySelector('.ms-trigger'); if(trig) trig.click(); }; listEl.appendChild(li); }); } }
+}
+
+// Override: chỉ lấy tài xế sẵn sàng; nếu đang sửa chuyến thêm tài xế hiện tại (dù nghỉ)
+async function loadDrivers(){
+  const editingTripId = tripIdInput?.value ? parseInt(tripIdInput.value,10) : null;
+  const currentTrip = editingTripId ? allTrips.find(t=>t.id===editingTripId) : null;
+  const currentDriverId = currentTrip?.driverId || null;
+  const res = await apiFetch(`${DRIVER_API}?status=available`);
+  if(!res || !res.success){ showNotify('Lỗi tải tài xế', 'error'); drivers=[]; return; }
+  drivers = (res.data || []).filter(d=> d && d.id != null);
+  if(currentDriverId && !drivers.some(d=> d.id === currentDriverId)){
+    const single = await apiFetch(`${DRIVER_API}/${currentDriverId}`);
+    if(single && single.id != null){ drivers.push(single); }
+  }
+  driverMap = new Map(drivers.map(d=>[d.id, d]));
+  let formOpts = '<option value="">-- Chọn --</option>';
+  if(drivers.length === 0){
+    formOpts += '<option value="" disabled>Không có tài xế sẵn sàng</option>';
+  } else {
+    formOpts += drivers.map(d=>{
+      const label = (d.fullName || d.name || ('Tài xế '+d.id)) + (currentDriverId && d.id===currentDriverId && String(d.status)!=='available' ? ' (đang nghỉ)' : '');
+      return `<option value="${d.id}">${escapeHtml(label)}</option>`;
+    }).join('');
+  }
+  driverSelect.innerHTML = formOpts;
+  const root = driverSelect.closest('.modern-select'); if(root){ const tv = root.querySelector('.ms-value'); if(tv) tv.textContent = driverSelect.selectedOptions[0]?.textContent || 'Chọn tài xế'; const listEl = root._ms?.list || root.querySelector('.ms-dropdown'); if(listEl){ listEl.innerHTML=''; [...driverSelect.options].forEach(opt=>{ const li=document.createElement('li'); li.className='ms-option'+(opt.selected?' active':''); li.dataset.value=opt.value; li.textContent=opt.textContent; li.role='option'; li.tabIndex=-1; li.onclick=()=>{ driverSelect.value=opt.value; driverSelect.dispatchEvent(new Event('change',{bubbles:true})); tv.textContent=opt.textContent; [...listEl.children].forEach(li=>li.classList.toggle('active', li.dataset.value===opt.value)); const trig=root.querySelector('.ms-trigger'); if(trig) trig.click(); }; listEl.appendChild(li); }); } }
+}
+
+// Helpers: parse plannedStart and check proximity
+function getPlannedTimeMs(val){
+  if(!val) return Number.NEGATIVE_INFINITY; // for DESC sort: missing dates go to bottom
+  try{
+    let s = String(val);
+    if(/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]+)?$/.test(s)) s = s.replace(' ','T');
+    const d = new Date(s);
+    if(isNaN(d)) return Number.NEGATIVE_INFINITY;
+    return d.getTime();
+  }catch(_){ return Number.NEGATIVE_INFINITY; }
+}
+function getEffectiveSortTimeMs(t){
+  const st = String(t?.status||'');
+  if((st==='IN_PROGRESS' || st==='COMPLETED') && t?.actualStart){
+    return getPlannedTimeMs(t.actualStart);
+  }
+  return getPlannedTimeMs(t?.plannedStart);
+}
+function isWithinDays(val, days){
+  try{
+    const t = getPlannedTimeMs(val);
+    if(!isFinite(t)) return false;
+    const diff = Math.abs(t - Date.now());
+    return diff <= days*24*60*60*1000;
+  }catch(_){ return false; }
+}
+
+// ===== Vehicle time conflict detection =====
+// Check if the proposed plannedStart/plannedEnd overlaps any existing trip of the same vehicle (excluding CANCELLED and itself when editing)
+function findVehicleConflicts(vehicleId, startStr, endStr, currentTripId){
+  if(!vehicleId || !startStr || !endStr) return [];
+  let start = Date.parse(startStr.includes('T')? startStr : startStr.replace(' ', 'T'));
+  let end = Date.parse(endStr.includes('T')? endStr : endStr.replace(' ', 'T'));
+  if(isNaN(start) || isNaN(end)) return [];
+  // ensure start < end basic validation before conflict scan
+  if(start >= end) return ['TIME_RANGE_INVALID'];
+  return allTrips.filter(t => {
+    if(String(t.id) === String(currentTripId)) return false; // ignore itself when editing
+    if(String(t.vehicleId) !== String(vehicleId)) return false;
+    if(String(t.status) === 'CANCELLED') return false;
+    // planned times fallback: if missing use actualStart/actualEnd
+    const otherStartRaw = t.plannedStart || t.actualStart;
+    const otherEndRaw = t.plannedEnd || t.actualEnd;
+    if(!otherStartRaw || !otherEndRaw) return false; // skip incomplete ranges
+    const os = Date.parse(otherStartRaw.includes('T')? otherStartRaw : otherStartRaw.replace(' ', 'T'));
+    const oe = Date.parse(otherEndRaw.includes('T')? otherEndRaw : otherEndRaw.replace(' ', 'T'));
+    if(isNaN(os) || isNaN(oe)) return false;
+    // overlap if start < oe && os < end
+    return start < oe && os < end;
+  }).map(t => t.id);
+}
+
+function highlightConflictingRows(conflictIds){
+  // remove previous highlights
+  tripTbody.querySelectorAll('tr.conflict').forEach(tr => tr.classList.remove('conflict'));
+  if(!conflictIds || !conflictIds.length) return;
+  const set = new Set(conflictIds.map(String));
+  tripTbody.querySelectorAll('button[data-edit]')?.forEach(btn => {
+    const id = btn.getAttribute('data-edit');
+    if(set.has(id)){
+      const row = btn.closest('tr');
+      if(row) row.classList.add('conflict');
+    }
+  });
+}
+
+// ===== Notification System =====
+let allNotifications = [];
+// Cache for user information
+const userCache = new Map();
+const notificationBellBtn = document.getElementById('notificationBellBtn');
+const notificationDropdown = document.getElementById('notificationDropdown');
+const notificationList = document.getElementById('notificationList');
+const notificationBadge = document.getElementById('notificationBadge');
+const closeNotificationBtn = document.getElementById('closeNotificationBtn');
+
+// Fetch user info by ID
+async function getUserInfo(userId){
+  if(!userId) return null;
+  if(userCache.has(userId)) return userCache.get(userId);
+  try{
+    const res = await apiFetch(`${GATEWAY_BASE}/api/auth/user/${userId}`);
+    if(res && res.success && res.user){
+      userCache.set(userId, res.user);
+      return res.user;
+    }
+  }catch(e){
+    console.error('Error fetching user:', e);
+  }
+  return null;
+}
+
+async function loadNotifications(){
+  try{
+    const res = await apiFetch(NOTIFICATION_API);
+    if(!res || !res.success){ 
+      allNotifications = [];
+      renderNotifications();
+      return;
+    }
+    allNotifications = res.data || [];
+    // Preload user info for all notifications with userId
+    const userIds = [...new Set(allNotifications.filter(n => n.userId).map(n => n.userId))];
+    await Promise.all(userIds.map(id => getUserInfo(id)));
+    renderNotifications();
+    updateNotificationBadge();
+  }catch(e){
+    console.error('Error loading notifications:', e);
+    allNotifications = [];
+    renderNotifications();
+  }
+}
+
+function renderNotifications(){
+  if(!notificationList) return;
+  if(!allNotifications || allNotifications.length === 0){
+    notificationList.innerHTML = `
+      <div class="notification-empty">
+        <i class="fas fa-bell-slash"></i>
+        <div>Chưa có thông báo nào</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sort notifications: newest first (by updatedAt, fallback to createdAt)
+  const sortedNotifications = [...allNotifications].sort((a, b) => {
+    const aTime = a.updatedAt ? new Date(a.updatedAt) : new Date(a.createdAt);
+    const bTime = b.updatedAt ? new Date(b.updatedAt) : new Date(b.createdAt);
+    return bTime - aTime; // Descending order
+  });
+  
+  const items = sortedNotifications.map(notif => {
+    // Safely get trip info and route name (may not exist on all pages)
+    const tripInfo = (typeof allTrips !== 'undefined' && allTrips) ? allTrips.find(t => t.id === notif.tripId) : null;
+    const routeName = tripInfo && (typeof routeMap !== 'undefined' && routeMap) 
+      ? (routeMap.get(tripInfo.routeId)?.name || 'Chuyến #'+notif.tripId) 
+      : 'Chuyến #'+notif.tripId;
+    const timeStr = formatNotificationTime(notif);
+    const isUnread = notif.status === 'unread';
+    
+    // Get username from cache
+    const user = notif.userId ? userCache.get(notif.userId) : null;
+    const userName = user ? (user.fullName || user.username) : 'Ai đó';
+    
+    // Format message with line breaks
+    const formattedMessage = escapeHtml(notif.message).replace(/\n/g, '<br>');
+    
+    return `
+      <div class="notification-item ${isUnread ? 'unread' : ''}" data-trip-id="${notif.tripId}" data-notif-id="${notif.id}">
+        <div class="notification-message">
+          ${isUnread ? '<span class="unread-dot"></span>' : ''}
+          <strong>${escapeHtml(routeName)}</strong><br>
+          <em>${escapeHtml(userName)}</em> ${formattedMessage}
+        </div>
+        <div class="notification-time">
+          <i class="fas fa-clock"></i>
+          <span>${timeStr}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  notificationList.innerHTML = items;
+  
+  // Add click handlers to mark as read and scroll to trip
+  notificationList.querySelectorAll('.notification-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const tripId = item.getAttribute('data-trip-id');
+      const notifId = item.getAttribute('data-notif-id');
+      
+      // Mark as read if unread
+      if(item.classList.contains('unread') && notifId){
+        try{
+          await apiFetch(`${NOTIFICATION_API}/${notifId}/read`, { method: 'PUT' });
+          item.classList.remove('unread');
+          updateNotificationBadge();
+        }catch(e){
+          console.error('Failed to mark as read:', e);
+        }
+      }
+      
+      if(tripId){
+        closeNotificationDropdown();
+        highlightTripRow(tripId);
+      }
+    });
+  });
+}
+
+function formatNotificationTime(notif){
+  if(!notif || !notif.createdAt || !notif.updatedAt) return '';
+  try{
+    // Parse createdAt
+    let createdAt;
+    if(typeof notif.createdAt === 'string'){
+      createdAt = new Date(notif.createdAt.replace(' ', 'T'));
+    } else if(typeof notif.createdAt === 'number'){
+      createdAt = new Date(notif.createdAt);
+    } else if(notif.createdAt instanceof Date){
+      createdAt = notif.createdAt;
+    } else {
+      return '';
+    }
+    
+    // Parse updatedAt
+    let updatedAt;
+    if(typeof notif.updatedAt === 'string'){
+      updatedAt = new Date(notif.updatedAt.replace(' ', 'T'));
+    } else if(typeof notif.updatedAt === 'number'){
+      updatedAt = new Date(notif.updatedAt);
+    } else if(notif.updatedAt instanceof Date){
+      updatedAt = notif.updatedAt;
+    } else {
+      return '';
+    }
+    
+    if(isNaN(createdAt.getTime()) || isNaN(updatedAt.getTime())) {
+      return '';
+    }
+    
+    // Tính chênh lệch: updatedAt - createdAt
+    const diff = updatedAt.getTime() - createdAt.getTime();
+    
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if(seconds < 60) return 'Vừa xong';
+    if(minutes < 60) return minutes + ' phút trước';
+    if(hours < 24) return hours + ' giờ trước';
+    if(days < 30) return days + ' ngày trước';
+    
+    const pad = n => String(n).padStart(2,'0');
+    return `${pad(updatedAt.getDate())}/${pad(updatedAt.getMonth()+1)}/${updatedAt.getFullYear()}`;
+  }catch(e){
+    console.error('Error formatting time:', e, notif);
+    return '';
+  }
+}
+
+function updateNotificationBadge(){
+  if(!notificationBadge) return;
+  // Chỉ đếm thông báo unread
+  const unreadCount = allNotifications.filter(n => n.status === 'unread').length;
+  if(unreadCount > 0){
+    notificationBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    notificationBadge.style.display = 'flex';
+  }else{
+    notificationBadge.style.display = 'none';
+  }
+}
+
+function toggleNotificationDropdown(){
+  if(!notificationDropdown) return;
+  const isVisible = notificationDropdown.style.display === 'block';
+  if(isVisible){
+    closeNotificationDropdown();
+  }else{
+    openNotificationDropdown();
+  }
+}
+
+function openNotificationDropdown(){
+  if(!notificationDropdown || !notificationBellBtn) return;
+  
+  // Portal to body if not already
+  if(!notificationDropdown._ported){
+    notificationDropdown._originalParent = notificationDropdown.parentElement;
+    document.body.appendChild(notificationDropdown);
+    notificationDropdown._ported = true;
+    notificationDropdown.classList.add('notification-floating');
+  }
+  
+  notificationDropdown.style.display = 'block';
+  positionNotificationDropdown();
+  loadNotifications();
+}
+
+function positionNotificationDropdown(){
+  if(!notificationDropdown || !notificationBellBtn) return;
+  
+  const rect = notificationBellBtn.getBoundingClientRect();
+  const dropdownRect = notificationDropdown.getBoundingClientRect();
+  
+  // Position below the button, aligned to the right
+  let top = window.scrollY + rect.bottom + 10;
+  let left = window.scrollX + rect.right - 450; // 450px = dropdown width
+  
+  // Keep within viewport
+  const margin = 8;
+  const minLeft = window.scrollX + margin;
+  const maxLeft = window.scrollX + window.innerWidth - 420 - margin;
+  left = Math.max(minLeft, Math.min(left, maxLeft));
+  
+  // If not enough space below, position above
+  if(window.innerHeight - rect.bottom < dropdownRect.height + 20){
+    top = window.scrollY + rect.top - dropdownRect.height - 10;
+  }
+  
+  notificationDropdown.style.position = 'absolute';
+  notificationDropdown.style.top = top + 'px';
+  notificationDropdown.style.left = left + 'px';
+}
+
+function closeNotificationDropdown(){
+  if(notificationDropdown) notificationDropdown.style.display = 'none';
+}
+
+function highlightTripRow(tripId){
+  // Remove existing highlights
+  tripTbody.querySelectorAll('tr.highlighted-trip').forEach(tr => tr.classList.remove('highlighted-trip'));
+  // Find and highlight the target row
+  const editBtn = tripTbody.querySelector(`button[data-edit="${tripId}"]`);
+  if(editBtn){
+    const row = editBtn.closest('tr');
+    if(row){
+      row.classList.add('highlighted-trip');
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => row.classList.remove('highlighted-trip'), 3000);
+    }
+  }
+}
+
+if(notificationBellBtn){
+  notificationBellBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleNotificationDropdown();
+  });
+}
+
+if(closeNotificationBtn){
+  closeNotificationBtn.addEventListener('click', closeNotificationDropdown);
+}
+
+// Clear read notifications button
+const clearReadBtn = document.getElementById('clearReadBtn');
+if(clearReadBtn){
+  clearReadBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if(!confirm('Xóa tất cả thông báo đã đọc?')) return;
+    try{
+      const res = await apiFetch(`${NOTIFICATION_API}/read`, { method: 'DELETE' });
+      if(res && res.success){
+        showNotify(`Đã xóa ${res.data?.deleted || 0} thông báo`, 'success');
+        await loadNotifications();
+      }
+    }catch(e){
+      console.error('Failed to delete read notifications:', e);
+      showNotify('Xóa thất bại', 'error');
+    }
+  });
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if(!notificationBellBtn?.contains(e.target) && !notificationDropdown?.contains(e.target)){
+    closeNotificationDropdown();
+  }
+});
+
+// Reposition on scroll/resize
+window.addEventListener('scroll', () => {
+  if(notificationDropdown && notificationDropdown.style.display === 'block'){
+    positionNotificationDropdown();
+  }
+}, true);
+
+window.addEventListener('resize', () => {
+  if(notificationDropdown && notificationDropdown.style.display === 'block'){
+    positionNotificationDropdown();
+  }
+});
+
+// Auto-refresh notifications every 10 seconds
+setInterval(() => {
+  if(notificationDropdown && notificationDropdown.style.display === 'block'){
+    loadNotifications();
+  }else{
+    // Just update badge count without rendering
+    apiFetch(NOTIFICATION_API).then(res => {
+      if(res && res.success){
+        allNotifications = res.data || [];
+        updateNotificationBadge();
+      }
+    }).catch(() => {});
+  }
+}, 10000);
+
+// Auto-refresh updatedAt every 10 seconds (for testing)
+setInterval(() => {
+  apiFetch(`${NOTIFICATION_API}/refresh`, { method: 'POST' })
+    .then(() => {
+      // Reload notifications to see updated time
+      if(notificationDropdown && notificationDropdown.style.display === 'block'){
+        loadNotifications();
+      }
+    })
+    .catch(() => {});
+}, 10000);
+
+// Init
+(async function(){
+  await Promise.all([loadRoutes(), loadVehicles(), loadDrivers()]);
+  await loadTrips();
+  await loadNotifications();
+})();
+
+// Close modal/backdrop and Esc
+[tripModal].forEach(m=>{ if(!m) return; m.addEventListener('click', e=>{ if(e.target===m) closeTripModal(); }); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(tripModal && tripModal.classList.contains('active')) closeTripModal(); } });
+
+// Attach Flatpickr to datetime inputs in the trip modal (consistent with schedules.html)
+function initTripDateTimePickers(){
+  try{
+    if(!window.flatpickr) return;
+    const now = new Date();
+    const common = {
+      enableTime:true,
+      time_24hr:true,
+      dateFormat:'Y-m-d\\TH:i',
+      altInput:true,
+      altFormat:'d/m/Y H:i',
+      allowInput:false,
+      clickOpens:true,
+      wrap:true,
+      defaultHour: now.getHours(),
+      defaultMinute: now.getMinutes(),
+      locale: (window.flatpickr?.l10ns?.vn) ? flatpickr.l10ns.vn : undefined
+    };
+    const wires=[
+      { id:'plannedStart' },
+      { id:'plannedEnd' },
+      { id:'actualStart' },
+      { id:'actualEnd' }
+    ];
+    wires.forEach(w=>{
+      const input = document.getElementById(w.id); if(!input) return;
+      const wrap = input.closest('.dt-modern'); if(!wrap) return;
+      if(!input._flatpickr){
+        const fp = flatpickr(wrap, {
+          ...common,
+          defaultDate: input.value || null,
+          onReady: [function(_sd,_ds,inst){ if(!input.value){ inst.jumpToDate(now); } }],
+          onOpen: [function(_sd,_ds,inst){ if(!input.value){ inst.jumpToDate(now); } }]
+        });
+        input._flatpickr = fp;
+        if(fp && fp.altInput) fp.altInput.placeholder = 'dd/mm/yyyy  HH:mm';
+      } else {
+        input._flatpickr.setDate(input.value || null, false);
+        if(!input.value){ input._flatpickr.jumpToDate(now); }
+      }
+    });
+  }catch(_){/* ignore */}
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/vn.js"></script>
+</body>
+</html>

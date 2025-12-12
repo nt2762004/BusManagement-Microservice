@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Hệ Thống Quản Lý Xe Buýt</title>
+    <script>
+        // Khai báo biến này TRƯỚC TIÊN để các file JS bên dưới dùng được
+        const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <script src="/js/role-guard.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/trip.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            color: #333;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title i {
+            margin-right: 0.75rem;
+            color: #667eea;
+        }
+
+        /* Default 5 columns, auto shrink on smaller screens */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 1rem;
+            align-items: stretch;
+        }
+        @media (max-width: 1280px) {
+            .stats-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (max-width: 992px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 640px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 420px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard admin-dashboard">
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-bus"></i>
+                <h2>Bus Management</h2>
+            </div>
+            
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <h3 id="sidebarFullName"></h3>
+                <p id="sidebarRole"></p>
+            </div>
+            
+            <ul class="nav-menu">
+                <li class="nav-item" data-roles="ADMIN, CHỦ NHÀ XE, ĐIỀU HÀNH, TÀI XẾ">
+                    <a href="/dashboard" class="nav-link active">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ADMIN">
+                    <a href="/user_mana" class="nav-link">
+                        <i class="fas fa-users"></i>
+                        Quản lý người dùng
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/buses" class="nav-link">
+                        <i class="fas fa-bus"></i>
+                        Quản lý xe buýt
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/drivers" class="nav-link">
+                        <i class="fas fa-id-card"></i>
+                        Quản lý tài xế
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/routes" class="nav-link">
+                        <i class="fas fa-route"></i>
+                        Quản lý tuyến đường
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾ, CHỦ NHÀ XE">
+                    <a href="/schedules" class="nav-link">
+                        <i class="fas fa-calendar"></i>
+                        Lịch trình
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE">
+                    <a href="/reports" class="nav-link">
+                        <i class="fas fa-chart-bar"></i>
+                        Báo cáo
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE">
+                    <a href="/trips" class="nav-link">
+                        <i class="fas fa-flag-checkered"></i>
+                        Quản lý chuyến
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ADMIN">
+                    <a href="/settings" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        Cài đặt
+                    </a>
+                </li>
+            </ul>
+        </aside>
+        
+        <main class="main-content">
+            <div class="header">
+                <h1>Chào mừng trở lại, <span id="welcomeName">Admin</span>!</h1>
+                <form method="get" action="/logout" style="display:inline;">
+                    <button type="submit" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Đăng xuất
+                    </button>
+                </form>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-bus"></i>
+                    </div>
+                    <div class="stat-number" id="statActiveBuses"></div>
+                    <div class="stat-label">Xe buýt hoạt động</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-ban"></i>
+                    </div>
+                    <div class="stat-number" id="statInactiveBuses"></div>
+                    <div class="stat-label">Xe ngừng hoạt động</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-route"></i>
+                    </div>
+                    <div class="stat-number" id="statActiveRoutes">0</div>
+                    <div class="stat-label">Tuyến đường</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                        <div class="stat-number" id="statUserCount">0</div>
+                    <div class="stat-label">Người dùng</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-number" id="statTripsToday">0</div>
+                    <div class="stat-label">Chuyến xe hôm nay</div>
+                </div>
+            </div>
+            
+            <div class="content-section">
+                <h2 class="section-title">
+                    <i class="fas fa-info-circle"></i>
+                    Thông tin hệ thống
+                </h2>
+                <p><strong>Phiên bản:</strong> Bus Management System v2.0</p>
+                <p><strong>Trạng thái:</strong> <span id="systemStatus" style="color: #28a745;">...</span></p>
+                <p><strong>Cơ sở dữ liệu:</strong> <span id="dbStatus" style="color:#28a745">...</span></p>
+                <p><strong>Người dùng đăng nhập:</strong> <span id="currentUserFullName"></span></p>
+                <p><strong>Ngày giờ hiện tại:</strong> <span id="currentTime"></span></p>
+            </div>
+        </main>
+    </div>
+</body>
+<script>
+// Hàm apiGet mới: Bắt lỗi thông minh hơn
+async function apiGet(url){
+    try {
+        console.log(`Dang goi API: ${url}`); // Log xem đang gọi cái nào
+        const res = await fetch(url, { credentials: 'include' });
+
+        // 1. Xử lý lỗi 401 (Chưa đăng nhập)
+        if (res.status === 401) { 
+            console.warn("Bi 401 Unauthorized, chuyen ve login");
+            window.location.href = '/login'; 
+            return null; 
+        }
+
+        // 2. Kiểm tra nếu Server báo lỗi (403, 404, 500...)
+        if (!res.ok) {
+            console.error(`Loi HTTP ${res.status} tu API: ${url}`);
+            return null; // Trả về null để code phía sau không bị crash
+        }
+
+        // 3. Đọc text trước để kiểm tra có phải JSON không
+        const text = await res.text();
+        
+        // Nếu server trả về rỗng -> Trả về null
+        if (!text) {
+            console.warn(`API tra ve rong (Empty Body): ${url}`);
+            return null;
+        }
+
+        // Thử parse JSON
+        try {
+            const data = JSON.parse(text);
+            // Logic kiểm tra lỗi nghiệp vụ
+            if (data.success === false && data.error === 'Chưa đăng nhập') { 
+                window.location.href = '/login'; 
+                return null; 
+            }
+            return data;
+        } catch (err) {
+            console.error(`Khong phai JSON! API: ${url} tra ve:`, text);
+            return null;
+        }
+
+    } catch(e){ 
+        console.error("Loi mang (Network Error):", e); 
+        return null; 
+    }
+}
+async function loadDashboard(){
+    const dash = await apiGet(GATEWAY_BASE + '/api/dashboard/admin');
+    if(!dash || !dash.success) return;
+    const user = dash.user || {}; const sys = dash.system || {};
+    document.getElementById('sidebarFullName').textContent = user.fullName || user.username || 'Admin';
+    document.getElementById('sidebarRole').textContent = user.role || '';
+    document.getElementById('welcomeName').textContent = user.fullName || user.username || 'Admin';
+    document.getElementById('currentUserFullName').textContent = user.fullName || user.username || '';
+    document.getElementById('statUserCount').textContent = dash.userCount ?? 0;
+    document.getElementById('systemStatus').textContent = sys.systemStatus || '...';
+    document.getElementById('dbStatus').textContent = sys.dbStatus || '...';
+    if (sys.dbColor) document.getElementById('dbStatus').style.color = sys.dbColor;
+
+    // Load vehicles and count active/inactive (active === 1/true/'1'/'true')
+    try {
+        const veh = await apiGet(GATEWAY_BASE + '/api/vehicles');
+        if (veh && veh.success && Array.isArray(veh.data)) {
+            const isActive = v => v && (v.active === true || v.active === 1 || v.active === '1' || v.active === 'true');
+            const isInactive = v => v && (v.active === false || v.active === 0 || v.active === '0' || v.active === 'false');
+
+            const activeCount = veh.data.reduce((acc, v) => acc + (isActive(v) ? 1 : 0), 0);
+            const inactiveCount = veh.data.reduce((acc, v) => acc + (isInactive(v) ? 1 : 0), 0);
+
+            const elActive = document.getElementById('statActiveBuses');
+            if (elActive) elActive.textContent = activeCount;
+            const elInactive = document.getElementById('statInactiveBuses');
+            if (elInactive) elInactive.textContent = inactiveCount;
+        }
+    } catch (e) {
+        console.error('Failed to load vehicles', e);
+    }
+
+    // Load routes and count active routes
+    try {
+        const routesRes = await apiGet(GATEWAY_BASE + '/api/routes');
+        if (routesRes && routesRes.success && Array.isArray(routesRes.data)) {
+            const isRouteActive = r => r && (r.active === true || r.active === 1 || r.active === '1' || r.active === 'true');
+            const activeRoutes = routesRes.data.reduce((acc, r) => acc + (isRouteActive(r) ? 1 : 0), 0);
+            const elRoutes = document.getElementById('statActiveRoutes');
+            if (elRoutes) elRoutes.textContent = activeRoutes;
+        }
+    } catch (e) {
+        console.error('Failed to load routes', e);
+    }
+
+    // Load trips and count those in today (exclude CANCELLED)
+    try {
+        const tripsRes = await apiGet(GATEWAY_BASE + '/api/trips');
+        const list = Array.isArray(tripsRes) ? tripsRes : (tripsRes?.data || []);
+        if (Array.isArray(list)){
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+            const sMs = startOfDay.getTime();
+            const eMs = endOfDay.getTime();
+            const parse = (v) => {
+                if(!v) return NaN; const t = Date.parse(v); return t;
+            };
+            const countToday = list.reduce((acc, t) => {
+                const status = (t.status||'').toString().toUpperCase();
+                if(status === 'CANCELLED') return acc; // exclude cancelled
+                const ps = parse(t.plannedStart||t.start||'');
+                const pe = parse(t.plannedEnd||t.end||'');
+                if (isNaN(ps) || isNaN(pe)) return acc;
+                // overlaps today window
+                if (ps < eMs && pe > sMs) return acc + 1;
+                return acc;
+            }, 0);
+            const elTrips = document.getElementById('statTripsToday');
+            if (elTrips) elTrips.textContent = String(countToday);
+        }
+    } catch (e) {
+        console.error('Failed to load trips', e);
+    }
+}
+function updateClock(){
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleDateString('vi-VN') + ' ' + now.toLocaleTimeString('vi-VN');
+}
+setInterval(updateClock,1000); updateClock();
+document.addEventListener('DOMContentLoaded', loadDashboard);
+// Logout intercept
+document.querySelector('form[action="/logout"]').onsubmit = async (e)=>{
+    e.preventDefault();
+    await fetch(GATEWAY_BASE + '/api/auth/logout', { method:'POST', credentials:'include'});
+    window.location.href='/login';
+};
+</script>
+</html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Quản lý tài xế</title>
+  <script>
+    // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+    const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+  </script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/driver.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css" />
+  <script src="/js/role-guard.js"></script>
+</head>
+<body>
+<div class="dashboard admin-dashboard" style="display:flex;">
+  <aside class="sidebar">
+    <div class="logo">
+      <i class="fas fa-bus"></i>
+      <h2>Bus Management</h2>
+    </div>
+    <div class="user-info">
+      <div class="user-avatar"><i class="fas fa-user-shield"></i></div>
+      <h3 id="sidebarFullName"></h3>
+      <p id="sidebarRole"></p>
+    </div>
+    <ul class="nav-menu">
+      <li class="nav-item"><a href="/dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a></li>
+      <li class="nav-item" data-roles="ADMIN"><a href="/user_mana" class="nav-link"><i class="fas fa-users"></i>Quản lý người dùng</a></li>
+      <li class="nav-item" data-roles="CHỦ NHÀ XE, ADMIN"><a href="/buses" class="nav-link"><i class="fas fa-bus"></i>Quản lý xe buýt</a></li>
+      <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/drivers" class="nav-link active"><i class="fas fa-id-card"></i>Quản lý tài xế</a></li>
+      <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/routes" class="nav-link"><i class="fas fa-route"></i>Quản lý tuyến đường</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, KỸ THUẬT, CHỦ NHÀ XE"><a href="/schedules" class="nav-link"><i class="fas fa-calendar"></i>Lịch trình</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/reports" class="nav-link"><i class="fas fa-chart-bar"></i>Báo cáo</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/trips" class="nav-link"><i class="fas fa-flag-checkered"></i>Quản lý chuyến</a></li>
+      <li class="nav-item" data-roles="ADMIN"><a href="/settings" class="nav-link"><i class="fas fa-cog"></i>Cài đặt</a></li>
+    </ul>
+  </aside>
+  <main class="main-content">
+    <div class="header">
+      <h1>Quản lý tài xế</h1>
+      <form method="get" action="/logout" style="display:inline;">
+        <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i>Đăng xuất</button>
+      </form>
+    </div>
+    <div class="toolbar">
+      <h2><i class="fas fa-id-card"></i> Danh sách tài xế</h2>
+      <div class="toolbar-actions" style="display:flex;gap:.6rem;">
+        <a href="#" id="btnAddDriver" class="action-btn" data-deny-roles="ADMIN"><i class="fas fa-plus"></i> Thêm tài xế</a>
+        <a href="#" id="btnExportDriver" class="action-btn" data-deny-roles="ADMIN"><i class="fas fa-file-export"></i> Export</a>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <div class="search-group">
+        <i class="fas fa-magnifying-glass"></i>
+        <input id="f_q" type="text" placeholder="Tìm tên / SĐT" />
+      </div>
+      <div class="modern-select" data-enhance-select>
+        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="ms-value">Trạng thái (tất cả)</span>
+          <span class="ms-caret"></span>
+        </button>
+        <ul class="ms-dropdown" role="listbox"></ul>
+        <select id="f_status">
+          <option value="">Trạng thái (tất cả)</option>
+          <option value="available">Sẵn sàng</option>
+          <option value="inactive">Nghỉ ngơi</option>
+        </select>
+      </div>
+      <div class="modern-select" data-enhance-select>
+        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="ms-value">GPLX (tất cả)</span>
+          <span class="ms-caret"></span>
+        </button>
+        <ul class="ms-dropdown" role="listbox"></ul>
+        <select id="f_license">
+          <option value="">GPLX (tất cả)</option>
+          <option>D</option><option>D1</option><option>D2</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="vehicle-table">
+        <thead>
+          <tr>
+            <th>Họ tên</th>
+            <th>Số điện thoại</th>
+            <th>Giấy phép</th>
+            <th>Trạng thái</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="driverTbody"></tbody>
+      </table>
+  </table>
+  </main>
+</div>
+<div id="notifyBox" style="display:none;"></div>
+<!-- Modal thêm/sửa tài xế -->
+<div class="modal" id="driverModal" aria-hidden="true">
+  <div class="modal-content">
+    <h3 id="driverModalTitle"><i class="fas fa-id-card"></i> Tài xế</h3>
+    <div class="form-grid">
+      <div>
+        <label for="m_fullName">Họ tên</label>
+        <input id="m_fullName" type="text" maxlength="100" />
+      </div>
+      <div>
+        <label for="m_phone">Số điện thoại</label>
+        <input id="m_phone" type="text" maxlength="20" />
+      </div>
+      <div>
+        <label for="m_licenseType">GPLX</label>
+        <div class="modern-select" data-enhance-select>
+          <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="ms-value"></span>
+            <span class="ms-caret"></span>
+          </button>
+          <ul class="ms-dropdown" role="listbox"></ul>
+          <select id="m_licenseType">
+            <option>D</option><option>D1</option><option>D2</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label for="m_licenseExpiry">Hạn GPLX</label>
+        <div class="dt-modern">
+          <input class="dt-modern" id="m_licenseExpiry" type="text" placeholder="Chọn ngày hết hạn" />
+        </div>
+      </div>
+      <div>
+        <label for="m_status">Trạng thái</label>
+        <div class="modern-select" data-enhance-select>
+          <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="ms-value"></span>
+            <span class="ms-caret"></span>
+          </button>
+          <ul class="ms-dropdown" role="listbox"></ul>
+          <select id="m_status">
+            <option value="available">Sẵn sàng</option>
+            <option value="inactive">Nghỉ ngơi</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="btnCancelModal">Hủy</button>
+      <button class="btn primary" id="btnSaveModal">Lưu</button>
+    </div>
+  </div>
+  <input type="hidden" id="m_id" />
+  <input type="hidden" id="m_mode" />
+  </div>
+<script>
+// Nhãn hiển thị cho trạng thái tài xế (chỉ còn 2 trạng thái)
+const DRIVER_STATUS_LABELS = {
+  available: 'Sẵn sàng',
+  inactive: 'Nghỉ ngơi'
+};
+
+// ===== Sidebar: lấy thông tin người dùng hiện tại và hiển thị =====
+// Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+const AUTH_API = `${GATEWAY_BASE}/api/auth/me`;
+const sidebarFullNameEl = document.getElementById('sidebarFullName');
+const sidebarRoleEl = document.getElementById('sidebarRole');
+
+function resolveUserInfo(resp){
+  const u = (resp && (resp.data || resp.user)) || resp || {};
+  const fullName = u.fullName || u.fullname || u.name || u.username || u.email || 'User';
+  const rawRoles = u.role || u.roles || u.authorities || [];
+  const roles = Array.isArray(rawRoles)
+    ? rawRoles.map(x => typeof x === 'string' ? x : (x.name || x.role || x.authority || '')).filter(Boolean)
+    : (typeof rawRoles === 'string' ? [rawRoles] : []);
+  return { fullName, roles };
+}
+async function loadCurrentUserForSidebar(){
+  try {
+    const res = await fetch(AUTH_API, { credentials: 'include' });
+    if(!res.ok) return;
+    const data = await res.json();
+    const { fullName, roles } = resolveUserInfo(data);
+    if (sidebarFullNameEl) sidebarFullNameEl.textContent = fullName;
+    if (sidebarRoleEl) sidebarRoleEl.textContent = roles.join(', ');
+    window.__userRole = roles.join(', ');
+    if (typeof window.applyDenyRoles === 'function') window.applyDenyRoles(window.__userRole);
+  } catch(_) { /* ignore */ }
+}
+document.addEventListener('DOMContentLoaded', loadCurrentUserForSidebar);
+
+// Load drivers from API Gateway
+async function loadDrivers() {
+  const tbody = document.getElementById('driverTbody');
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#64748b;">Đang tải...</td></tr>`;
+  try {
+    const qs = buildQuery();
+    const res = await fetch(`${GATEWAY_BASE}/api/drivers` + qs, { credentials: 'include' });
+    if (!res.ok) throw new Error('Fetch failed');
+    const data = await res.json();
+    if (!Array.isArray(data) || !data.length) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#64748b;">Chưa có dữ liệu</td></tr>`;
+      return;
+    }
+      tbody.innerHTML = data.map(d => `
+      <tr>
+        <td>${d.fullName}</td>
+        <td>${d.phone}</td>
+        <td>${d.licenseType}</td>
+        <td>
+            <div class="modern-select" data-enhance-select>
+              <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="ms-value"></span>
+                <span class="ms-caret"></span>
+              </button>
+              <ul class="ms-dropdown" role="listbox"></ul>
+              <select data-status-for="${d.id}">
+                ${['available','inactive'].map(s => `<option value="${s}" ${s===d.status?'selected':''}>${DRIVER_STATUS_LABELS[s] || s}</option>`).join('')}
+              </select>
+            </div>
+        </td>
+        <td class="row-actions">
+          <button class="btn" data-deny-roles="ADMIN" onclick="openDriverModal('edit', ${d.id})"><i class="fas fa-pen"></i> Sửa</button>
+          <button class="btn" data-deny-roles="ADMIN" onclick="deleteDriver(${d.id})"><i class="fas fa-trash"></i> Xóa</button>
+        </td>
+      </tr>
+    `).join('');
+      // Enhance row status dropdowns and attach change handler
+      tbody.querySelectorAll('[data-enhance-select]').forEach(root => {
+        enhanceModernSelect(root);
+        const sel = root.querySelector('select');
+        const driverId = sel?.getAttribute('data-status-for');
+        if (driverId) sel.addEventListener('change', () => onChangeStatus(driverId, sel.value));
+      });
+    if (window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#ef4444;">Lỗi tải dữ liệu</td></tr>`;
+    showNotify('Lỗi tải dữ liệu tài xế', 'error');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadDrivers();
+  // Live filtering instead of buttons
+  const inputQ = document.getElementById('f_q');
+  const selStatus = document.getElementById('f_status');
+  const selLicense = document.getElementById('f_license');
+  if (inputQ) {
+    inputQ.addEventListener('input', loadDrivers);
+    inputQ.addEventListener('keydown', e => { if (e.key === 'Escape') { inputQ.value=''; loadDrivers(); } });
+  }
+  if (selStatus) selStatus.addEventListener('change', loadDrivers);
+  if (selLicense) selLicense.addEventListener('change', loadDrivers);
+  document.getElementById('btnAddDriver').addEventListener('click', (e) => { e.preventDefault(); openDriverModal('add'); });
+  document.getElementById('btnCancelModal').addEventListener('click', closeDriverModal);
+  document.getElementById('btnSaveModal').addEventListener('click', saveDriverModal);
+  const btnExport = document.getElementById('btnExportDriver');
+  if (btnExport) btnExport.addEventListener('click', (e) => { e.preventDefault(); exportDriversCsv(); });
+
+  // Đóng modal khi click ra nền tối & ESC
+  driverModal.addEventListener('click', e => { if (e.target === driverModal) closeDriverModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDriverModal(); });
+
+  // Enhance modern selects
+  document.querySelectorAll('[data-enhance-select]').forEach(enhanceModernSelect);
+});
+
+function buildQuery() {
+  const q = (f_q.value||'').trim();
+  const st = (f_status.value||'').trim();
+  const lt = (f_license.value||'').trim();
+  const p = [];
+  if (q) p.push('q='+encodeURIComponent(q));
+  if (st) p.push('status='+encodeURIComponent(st));
+  if (lt) p.push('licenseType='+encodeURIComponent(lt));
+  return p.length ? ('?'+p.join('&')) : '';
+}
+
+// CRUD
+function openDriverModal(mode, id) {
+  m_mode.value = mode;
+  m_id.value = id || '';
+  if (mode === 'edit') {
+    fetch(`${GATEWAY_BASE}/api/drivers/`+id, { credentials:'include' })
+      .then(r => r.json())
+      .then(d => {
+        m_fullName.value = d.fullName || '';
+        m_phone.value = d.phone || '';
+        m_licenseType.value = d.licenseType || 'D';
+        // Format date for Flatpickr (dd/mm/yyyy)
+        if(d.licenseExpiry) {
+          try {
+            const date = new Date(d.licenseExpiry);
+            const day = String(date.getDate()).padStart(2,'0');
+            const month = String(date.getMonth()+1).padStart(2,'0');
+            const year = date.getFullYear();
+            m_licenseExpiry.value = `${day}/${month}/${year}`;
+          } catch(e) {
+            m_licenseExpiry.value = (d.licenseExpiry || '').slice(0,10);
+          }
+        } else {
+          m_licenseExpiry.value = '';
+        }
+        m_status.value = d.status || 'available';
+        // sync modern-select labels
+        syncModernSelectValue(document.getElementById('m_licenseType'));
+        syncModernSelectValue(document.getElementById('m_status'));
+        showModal(driverModal, 'Sửa tài xế');
+      })
+  .catch(() => showNotify('Không tải được tài xế', 'error'));
+  } else {
+    m_fullName.value=''; m_phone.value=''; m_licenseType.value='D'; m_licenseExpiry.value=''; m_status.value='available';
+    syncModernSelectValue(document.getElementById('m_licenseType'));
+    syncModernSelectValue(document.getElementById('m_status'));
+    // Re-init Flatpickr when modal opens for add mode
+    initLicenseExpiryPicker();
+    showModal(driverModal, 'Thêm tài xế');
+  }
+}
+
+function saveDriverModal() {
+  const payload = {
+    fullName: m_fullName.value.trim(),
+    phone: m_phone.value.trim(),
+    licenseType: m_licenseType.value,
+    // Convert dd/mm/yyyy to yyyy-mm-dd for API
+    licenseExpiry: (() => {
+      const val = m_licenseExpiry.value.trim();
+      if(!val) return '';
+      try {
+        const parts = val.split('/');
+        if(parts.length === 3) {
+          return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+        }
+      } catch(e) {}
+      return val;
+    })(),
+    status: m_status.value
+  };
+  const mode = m_mode.value;
+  const id = m_id.value;
+  if (!payload.fullName || !payload.phone || !payload.licenseType || !payload.licenseExpiry) {
+    showNotify('Vui lòng nhập đủ thông tin bắt buộc', 'warn'); return;
+  }
+  const url = mode==='edit' ? `${GATEWAY_BASE}/api/drivers/`+id : `${GATEWAY_BASE}/api/drivers`;
+  const method = mode==='edit' ? 'PUT' : 'POST';
+  fetch(url, { method, credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) })
+    .then(res => { if (!res.ok) throw new Error('save-fail'); return res.json(); })
+  .then(() => { closeDriverModal(); showNotify('Đã lưu', 'success'); loadDrivers(); })
+  .catch(() => showNotify('Lưu thất bại', 'error'));
+}
+
+function deleteDriver(id) {
+  if (!confirm('Xóa tài xế #' + id + ' ?')) return;
+  fetch(`${GATEWAY_BASE}/api/drivers/`+id, { method:'DELETE', credentials:'include' })
+    .then(res => { if (!res.ok) throw new Error('delete-fail'); })
+  .then(() => { showNotify('Đã xóa', 'success'); loadDrivers(); })
+  .catch(() => showNotify('Xóa thất bại', 'error'));
+}
+
+function onChangeStatus(id, status) {
+  fetch(`${GATEWAY_BASE}/api/drivers/`+id+'/status', {
+    method:'PATCH', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ status })
+  }).then(res => { if (!res.ok) throw new Error('status-fail'); })
+  .then(() => showNotify('Đã cập nhật trạng thái', 'success'))
+  .catch(() => showNotify('Cập nhật trạng thái thất bại', 'error'));
+}
+
+// Export CSV như vehicle.html
+async function exportDriversCsv() {
+  try {
+    const qs = buildQuery();
+    const res = await fetch(`${GATEWAY_BASE}/api/drivers` + qs, { credentials:'include' });
+    if (!res.ok) throw new Error('fetch-fail');
+    const list = await res.json();
+    const header = ['id','fullName','phone','licenseType','status'];
+    const lines = [header.join(',')].concat((list||[]).map(d => header.map(h => '"' + String(d[h] ?? '').replace(/"/g,'""') + '"').join(',')));
+    const blob = new Blob(["\uFEFF" + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'drivers.csv'; a.click();
+    showNotify('Đã xuất CSV', 'success');
+  } catch(e) {
+    showNotify('Export thất bại', 'error');
+  }
+}
+
+// Modal helpers & notify
+function showModal(el, title) {
+  const t = el.querySelector('h3'); if (t && title) t.textContent = title;
+  el.classList.add('active'); el.removeAttribute('aria-hidden');
+}
+function closeDriverModal() { driverModal.classList.remove('active'); driverModal.setAttribute('aria-hidden','true'); }
+
+function showNotify(message, type = 'info', autoHideMs = 2600) {
+  const box = document.getElementById('notifyBox'); if (!box) return;
+  const colors = { success: '#16a34a', error: '#dc2626', info: '#2563eb', warn: '#d97706' };
+  box.style.background = colors[type] || colors.info; box.textContent = message; box.style.display = 'block'; box.style.opacity = '1';
+  if (box._timer) clearTimeout(box._timer);
+  if (autoHideMs > 0) box._timer = setTimeout(() => { box.style.opacity = '0'; box.style.transition = 'opacity .35s'; setTimeout(() => { box.style.display = 'none'; box.style.transition = ''; }, 380); }, autoHideMs);
+}
+
+// Format ISO date-time or fallback to substring HH:mm
+function formatTime(dtStr){
+  if(!dtStr) return '';
+  try {
+    const d = new Date(dtStr);
+    if(!isNaN(d)) return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  } catch(e) { /* ignore */ }
+  const tPart = dtStr.split('T')[1] || dtStr;
+  return tPart.slice(0,5); // HH:mm from 'HH:mm:ss'
+}
+
+// Debounce helper to limit network calls while typing
+// (debounce removed by request)
+
+// ===== Modern Select JS: build, open/close, keyboard, sync =====
+function enhanceModernSelect(root){
+  const native = root.querySelector('select');
+  const trigger = root.querySelector('.ms-trigger');
+  const list = root.querySelector('.ms-dropdown');
+  if(!native || !trigger || !list) return;
+
+  function build(){
+    list.innerHTML = '';
+    Array.from(native.options).forEach(opt => {
+      const li = document.createElement('li');
+      li.className = 'ms-option' + (opt.selected ? ' active' : '');
+      li.tabIndex = 0;
+      li.textContent = opt.textContent;
+      li.dataset.value = opt.value;
+      li.addEventListener('click', () => selectValue(opt.value, true));
+      li.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); selectValue(opt.value, true);} });
+      list.appendChild(li);
+    });
+    const sel = native.selectedOptions[0];
+    trigger.querySelector('.ms-value').textContent = sel ? sel.textContent : '';
+  }
+
+  // If inside table, port list to body to avoid clipping
+  const insideTable = !!root.closest('table');
+  if (insideTable) root.classList.add('use-floating');
+  let floatingList = null;
+
+  function positionFloating(){
+    if(!floatingList) return;
+    const r = trigger.getBoundingClientRect();
+    floatingList.style.minWidth = r.width + 'px';
+    floatingList.style.left = Math.round(r.left) + 'px';
+    floatingList.style.top = Math.round(r.bottom + 6) + 'px';
+  }
+
+  function open(){
+    if(insideTable){
+      if(!floatingList){
+        floatingList = list.cloneNode(true);
+        floatingList.classList.add('ms-floating');
+        document.body.appendChild(floatingList);
+        // delegate clicks
+        floatingList.addEventListener('click', e => {
+          const item = e.target.closest('.ms-option');
+          if(item){ selectValue(item.dataset.value, true); }
+        });
+        floatingList.addEventListener('keydown', e => {
+          const items = Array.from(floatingList.querySelectorAll('.ms-option'));
+          const idx = items.indexOf(document.activeElement);
+          if(e.key==='ArrowDown'){ e.preventDefault(); (items[idx+1]||items[0])?.focus(); }
+          else if(e.key==='ArrowUp'){ e.preventDefault(); (items[idx-1]||items[items.length-1])?.focus(); }
+          else if(e.key==='Enter' || e.key===' '){ e.preventDefault(); const val = document.activeElement?.dataset?.value; if(val) selectValue(val, true); }
+          else if(e.key==='Escape'){ e.preventDefault(); close(); trigger.focus(); }
+        });
+      } else {
+        // refresh options state
+        floatingList.innerHTML = list.innerHTML;
+      }
+      positionFloating();
+      floatingList.classList.add('show');
+      root.classList.add('open');
+      trigger.setAttribute('aria-expanded','true');
+      window.addEventListener('resize', positionFloating);
+      window.addEventListener('scroll', positionFloating, true);
+      document.addEventListener('click', outside);
+      const firstItem = floatingList.querySelector('.ms-option');
+      if(firstItem) firstItem.focus();
+    } else {
+      root.classList.add('open'); trigger.setAttribute('aria-expanded','true'); document.addEventListener('click', outside);
+      const first = list.querySelector('.ms-option'); if(first) first.focus();
+    }
+  }
+  function close(){
+    root.classList.remove('open');
+    trigger.setAttribute('aria-expanded','false');
+    document.removeEventListener('click', outside);
+    if(floatingList){ floatingList.classList.remove('show'); window.removeEventListener('resize', positionFloating); window.removeEventListener('scroll', positionFloating, true); }
+  }
+  function outside(e){ if(root.contains(e.target)) return; close(); }
+
+  function selectValue(val, shouldClose){
+    native.value = val;
+    trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?.textContent || '';
+    list.querySelectorAll('.ms-option').forEach(el => el.classList.toggle('active', el.dataset.value === val));
+    if(floatingList) floatingList.querySelectorAll('.ms-option').forEach(el => el.classList.toggle('active', el.dataset.value === val));
+    // Prevent infinite loop by setting flag before dispatching
+    native._programmaticChange = true;
+    native.dispatchEvent(new Event('change', { bubbles: true }));
+    native._programmaticChange = false;
+    if(shouldClose) close();
+  }
+
+  trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
+  trigger.addEventListener('keydown', e => { if(['Enter',' ','ArrowDown'].includes(e.key)){ e.preventDefault(); open(); (list.querySelector('.ms-option')||trigger).focus(); } });
+
+  // Sync when native select changes elsewhere (but not from selectValue itself)
+  native.addEventListener('change', () => {
+    if(!native._programmaticChange) selectValue(native.value, false);
+  });
+
+  build();
+  // Expose helpers
+  root._ms = { build, selectValue, native, trigger, list };
+}
+
+function syncModernSelectValue(selectEl){
+  const root = selectEl?.closest('[data-enhance-select]');
+  if(root && root._ms){ root._ms.selectValue(selectEl.value, false); }
+}
+// Ghi chú: Quyền truy cập trang này được kiểm soát bởi role-guard.js thông qua PAGE_REQUIRED_ROLE.
+
+// Initialize Flatpickr for license expiry date picker
+function initLicenseExpiryPicker(){
+  const input = document.getElementById('m_licenseExpiry');
+  if(!input) return;
+  flatpickr(input, {
+    enableTime: false,
+    dateFormat: 'd/m/Y',
+    locale: 'vn',
+    allowInput: true,
+    clickOpens: true,
+    onReady: function(selectedDates, dateStr, instance) {
+      // Check if the calendar button already exists
+      if (!instance.calendarContainer.parentNode.querySelector('.dt-cal-btn')) {
+        const calBtn = document.createElement('button');
+        calBtn.className = 'dt-cal-btn';
+        calBtn.type = 'button';
+        calBtn.innerHTML = '<i class="fas fa-calendar-alt"></i>';
+        calBtn.addEventListener('click', (e) => { e.preventDefault(); instance.open(); });
+        instance.calendarContainer.parentNode.querySelector('.dt-modern')?.appendChild(calBtn);
+      }
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', initLicenseExpiryPicker);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/vn.js"></script>
+</body>
+</html>

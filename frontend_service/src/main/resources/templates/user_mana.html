@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý người dùng</title>
+    <script>
+        // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+        const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/user_mana.css">
+    <script src="/js/role-guard.js"></script>
+</head>
+<body>
+    <!-- Modal popup thêm/sửa user -->
+    <div class="modal" id="userModal">
+        <div class="modal-content" style="max-width:400px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;">
+                <i class="fas fa-user-plus" style="font-size:2rem;color:#764ba2;"></i>
+                <h2 id="modalTitle" style="margin:0;font-size:1.5rem;color:#764ba2;font-weight:700;">Thêm người dùng</h2>
+            </div>
+            <form id="userForm">
+                <div style="margin-bottom:0.5rem;">
+                    <label for="username">Tài khoản</label>
+                    <input type="text" id="username" name="username" required placeholder="Nhập tài khoản" autocomplete="off">
+                </div>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="password">Mật khẩu</label>
+                    <input type="password" id="password" name="password" required placeholder="Nhập mật khẩu mới">
+                </div>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="fullName">Họ tên</label>
+                    <input type="text" id="fullName" name="fullName" required placeholder="Nhập họ tên">
+                </div>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required placeholder="Nhập email">
+                </div>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="phone">Số điện thoại</label>
+                    <input type="text" id="phone" name="phone" required placeholder="Nhập số điện thoại">
+                </div>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="role">Vai trò</label>
+                    <div class="modern-select" data-enhance-select>
+                        <select id="role" name="role" required>
+                            <option th:each="role : ${roles}" th:value="${role.id}" th:text="${role.name}"></option>
+                        </select>
+                        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="ms-value"></span><span class="ms-caret"></span>
+                        </button>
+                        <ul class="ms-dropdown" role="listbox"></ul>
+                    </div>
+                </div>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="active">Hoạt động</label>
+                    <div class="modern-select" data-enhance-select>
+                        <select id="active" name="active" required>
+                            <option value="true">Đang hoạt động</option>
+                            <option value="false">Ngừng hoạt động</option>
+                        </select>
+                        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="ms-value"></span><span class="ms-caret"></span>
+                        </button>
+                        <ul class="ms-dropdown" role="listbox"></ul>
+                    </div>
+                </div>
+                <div class="modal-actions" style="margin-top:1.5rem;">
+                    <button type="button" id="cancelBtn" class="action-btn cancel-btn" style="background:#eee;color:#764ba2;border-radius:8px;padding:0.6rem 1.5rem;font-weight:500;">Hủy</button>
+                    <button type="submit" class="action-btn" style="background:#764ba2;color:#fff;border-radius:8px;padding:0.6rem 1.5rem;font-weight:500;">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="dashboard admin-dashboard" style="display: flex; height: 100vh; overflow: hidden;">
+        <!-- Notification container -->
+        <div id="notifyBox" style="position:fixed;top:15px;right:15px;z-index:2000;display:none;min-width:260px;padding:12px 18px;border-radius:8px;font-weight:500;font-size:14px;background:#323232;color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.18);"></div>
+        <aside class="sidebar" style="position: fixed; left: 0; top: 0; height: 100vh; z-index: 100; background: #fff; box-shadow: 2px 0 12px rgba(118,75,162,0.07);">
+            <div class="logo">
+                <i class="fas fa-bus"></i>
+                <h2>Bus Management</h2>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <h3 id="sidebarFullName"></h3>
+                <p id="sidebarRole"></p>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="/dashboard" class="nav-link">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ADMIN">
+                    <a href="/user_mana" class="nav-link active">
+                        <i class="fas fa-users"></i>
+                        Quản lý người dùng
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/buses" class="nav-link">
+                        <i class="fas fa-bus"></i>
+                        Quản lý xe buýt
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/drivers" class="nav-link">
+                        <i class="fas fa-id-card"></i>
+                        Quản lý tài xế
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/routes" class="nav-link">
+                        <i class="fas fa-route"></i>
+                        Quản lý tuyến đường
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾ, CHỦ NHÀ XE">
+                    <a href="/schedules" class="nav-link">
+                        <i class="fas fa-calendar"></i>
+                        Lịch trình
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH">
+                    <a href="/reports" class="nav-link">
+                        <i class="fas fa-chart-bar"></i>
+                        Báo cáo
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE">
+                    <a href="/trips" class="nav-link">
+                        <i class="fas fa-flag-checkered"></i>
+                        Quản lý chuyến
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ADMIN">
+                    <a href="/settings" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        Cài đặt
+                    </a>
+                </li>
+            </ul>
+        </aside>
+    <main class="main-content" style="margin-left: 260px; width: calc(100vw - 260px); height: 100vh; overflow-y: auto;">
+            <div class="header">
+                <h1>Quản lý người dùng</h1>
+                <form method="get" action="/logout" style="display:inline;">
+                    <button type="submit" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Đăng xuất
+                    </button>
+                </form>
+            </div>
+            <div class="toolbar">
+                <h1><i class="fas fa-users"></i>Danh sách người dùng</h1>
+                <div class="toolbar-actions">
+                    <a href="#" class="action-btn" id="addUserBtn">Thêm người dùng</a>
+                    <a href="#" class="action-btn" id="btnExport">Export</a>
+                </div>
+            </div>
+            <div class="filter-bar">
+                <div class="search-group">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Tìm theo tài khoản, họ tên, email, điện thoại" autocomplete="off" />
+                </div>
+                <div class="modern-select" data-enhance-select>
+                    <select id="roleFilter">
+                        <option value="">-- Vai trò --</option>
+                    </select>
+                    <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Vai trò --</span><span class="ms-caret"></span></button>
+                    <ul class="ms-dropdown" role="listbox"></ul>
+                </div>
+                <div class="modern-select" data-enhance-select>
+                    <select id="activeFilter">
+                        <option value="">-- Trạng thái --</option>
+                        <option value="true">Đang hoạt động</option>
+                        <option value="false">Ngừng hoạt động</option>
+                    </select>
+                    <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Trạng thái --</span><span class="ms-caret"></span></button>
+                    <ul class="ms-dropdown" role="listbox"></ul>
+                </div>
+            </div>
+            
+            <div class="table-card">
+                <div class="table-scroll">
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tài khoản</th>
+                                <th>Mật khẩu</th>
+                                <th>Họ tên</th>
+                                <th>Email</th>
+                                <th>Số điện thoại</th>
+                                <th>Vai trò</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTbody"><!-- dynamic list --></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </main>
+    <script>
+    // ===== Config =====
+    // Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+    const API_BASE = GATEWAY_BASE + '/api/admin';
+    const AUTH_API = GATEWAY_BASE + '/api/auth';
+
+    // ===== Helpers =====
+    async function apiFetch(url, options = {}) {
+        const opts = Object.assign({ credentials: 'include' }, options);
+        if (opts.body && !opts.headers) opts.headers = { 'Content-Type': 'application/json' };
+        try {
+            const res = await fetch(url, opts);
+            if (res.status === 401) { window.location.href = '/login'; return null; }
+            const data = await res.json().catch(()=>({}));
+            if (data.success === false && data.error === 'Chưa đăng nhập') { window.location.href='/login'; return null; }
+            return data;
+        } catch (e) { console.error(e); alert('Không thể kết nối máy chủ'); return null; }
+    }
+
+    function makeEl(tag, attrs={}, html='') {
+        const el = document.createElement(tag);
+        Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));
+        if (html) el.innerHTML = html;
+        return el;
+    }
+
+    // ===== Notification helper =====
+    function showNotify(message, type='info', autoHideMs=3000) {
+        const box = document.getElementById('notifyBox');
+        if (!box) return;
+        const colors = {
+            success: {bg:'#16a34a', fg:'#fff'},
+            error: {bg:'#dc2626', fg:'#fff'},
+            info: {bg:'#2563eb', fg:'#fff'},
+            warn: {bg:'#d97706', fg:'#fff'}
+        };
+        const c = colors[type] || colors.info;
+        box.style.background = c.bg; box.style.color = c.fg;
+        box.textContent = message;
+        box.style.display='block'; box.style.opacity='1';
+        if (box._timer) clearTimeout(box._timer);
+        if (autoHideMs>0) {
+            box._timer = setTimeout(()=>{ box.style.transition='opacity .4s'; box.style.opacity='0'; setTimeout(()=>{ box.style.display='none'; box.style.transition=''; },400); }, autoHideMs);
+        }
+    }
+
+    function statusSpan(active) {
+        const span = document.createElement('span');
+        span.textContent = active ? 'Đang hoạt động' : 'Ngừng hoạt động';
+        span.className = active ? 'user-status-active' : 'user-status-inactive';
+        span.style.cssText = active ? 'color:#22c55e;font-weight:bold;' : 'color:#ef4444;font-weight:bold;';
+        return span;
+    }
+
+    function renderUsers(users, currentUsername) {
+        const tbody = document.getElementById('usersTbody');
+        tbody.innerHTML='';
+        users.forEach(u => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${u.id}</td>
+                <td>${u.username}</td>
+                <td class="pwd-cell" data-state="hidden" data-id="${u.id}">
+                    <span class="pwd-mask" style="letter-spacing:2px;">••••••••</span>
+                    <a href="#" class="toggle-pwd" data-id="${u.id}" aria-label="Hiển thị mật khẩu" style="margin-left:6px;color:#764ba2;">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                </td>
+                <td>${u.fullName||''}</td>
+                <td>${u.email||''}</td>
+                <td>${u.phone||''}</td>
+                <td>${u.role?u.role.name:''}</td>
+                <td></td>
+                <td></td>`;
+            tr.children[7].appendChild(statusSpan(u.active));
+            const actions = tr.children[8];
+            const edit = makeEl('a', {href:'#', class:'action-btn edit', 'data-id':u.id}); edit.textContent='Sửa';
+            const del = makeEl('a', {href:'#', class:'action-btn delete', 'data-username':u.username}); del.textContent='Xóa';
+            if (u.username !== currentUsername) {
+                const toggle = makeEl('a', {href:'#', class:'action-btn toggle-active '+(u.active?'active-locked':'active-unlocked'), 'data-id':u.id, 'data-active':u.active});
+                toggle.textContent = u.active ? 'Khóa' : 'Mở';
+                actions.append(edit,' ',del,' ',toggle);
+            } else {
+                actions.append(edit,' ',del);
+            }
+            tbody.appendChild(tr);
+        });
+        bindRowEvents();
+        // Áp dụng disable theo vai trò sau khi render bảng
+        if (window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+    }
+
+    function populateRoles(roles) {
+        const sel = document.getElementById('role');
+        sel.innerHTML='';
+        roles
+          // exclude ADMIN from form dropdown
+          .filter(r => String(r.name || '').toUpperCase() !== 'ADMIN')
+          .forEach(r=>{
+            const opt = document.createElement('option');
+            opt.value = r.id; opt.textContent = r.name; sel.appendChild(opt);
+        });
+    }
+
+    // Populate role filter options
+    function populateRoleFilter(roles){
+        const sel = document.getElementById('roleFilter');
+        if(!sel) return;
+        // keep the first default option
+        sel.innerHTML = '<option value="">-- Vai trò --</option>';
+        roles
+          // exclude ADMIN from filter list
+          .filter(r => String(r.name || '').toUpperCase() !== 'ADMIN')
+          .forEach(r=>{
+            const opt = document.createElement('option');
+            opt.value = r.name || r.id; // filter by role name primarily
+            opt.textContent = r.name; sel.appendChild(opt);
+        });
+    }
+
+    // ===== Users filtering & export =====
+    let allUsers = [], currentUsername = '', allRoles = [];
+    let currentPage = 1, pageSize = 8;
+    const searchInput = document.getElementById('searchInput');
+    const roleFilter = document.getElementById('roleFilter');
+    const activeFilter = document.getElementById('activeFilter');
+
+    function applyUserFilters(){
+        const q = (searchInput?.value || '').toLowerCase().trim();
+        const roleVal = roleFilter?.value || '';
+        const actVal = activeFilter?.value || '';
+        return (allUsers || []).filter(u => {
+            let ok = true;
+            if (q) {
+                const fields = [u.username, u.fullName, u.email, u.phone, String(u.id)].map(x => (x||'').toString().toLowerCase());
+                ok = fields.some(f => f.includes(q));
+            }
+            if (ok && roleVal) {
+                const name = (u.role?.name || '').toString();
+                const idStr = (u.role?.id != null ? String(u.role.id) : '');
+                ok = (name === roleVal || idStr === roleVal);
+            }
+            if (ok && actVal !== '') ok = String(!!u.active) === actVal;
+            return ok;
+        });
+    }
+
+    function renderUsersTable(){
+        const filtered = applyUserFilters();
+        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * pageSize;
+        const pageRows = filtered.slice(start, start + pageSize);
+        renderUsers(pageRows, currentUsername);
+        renderPagination(totalPages);
+        if (filtered.length === 0) {
+            const tbody = document.getElementById('usersTbody');
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#64748b;">Không có dữ liệu</td></tr>';
+        }
+    }
+
+    function renderPagination(total){
+        const pg = document.getElementById('pagination');
+        if (!pg) return;
+        let html = '';
+        for (let i = 1; i <= total; i++) {
+            html += `<button class="${i === currentPage ? 'active' : ''}" onclick="gotoPage(${i})" ${i===currentPage?'aria-current="page"':''}>${i}</button>`;
+        }
+        pg.innerHTML = html;
+    }
+    function gotoPage(p){ currentPage = p; renderUsersTable(); }
+
+    function exportUsersCsv(){
+        const rows = applyUserFilters();
+        const header = ['id','username','fullName','email','phone','role','active'];
+        const lines = [header.join(',')].concat(rows.map(u => {
+            const roleName = (u.role && (u.role.name || u.role)) ? (u.role.name || String(u.role)) : '';
+            const vals = [u.id, u.username, u.fullName, u.email, u.phone, roleName, u.active ? 'true' : 'false'];
+            return vals.map(v => '"' + (v == null ? '' : String(v).replace(/"/g,'""')) + '"').join(',');
+        }));
+        const blob = new Blob(["\uFEFF" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'users.csv'; a.click();
+    }
+
+    // ===== Event Bindings =====
+    function bindRowEvents() {
+        document.querySelectorAll('.action-btn.edit').forEach(btn=>{
+            btn.onclick = (e)=>{
+                e.preventDefault();
+                const tr = btn.closest('tr');
+                document.getElementById('modalTitle').innerText='Sửa người dùng';
+                document.getElementById('username').value = tr.children[1].innerText.trim();
+                const pwdInput = document.getElementById('password');
+                pwdInput.value = '';
+                document.getElementById('fullName').value = tr.children[3].innerText.trim();
+                document.getElementById('email').value = tr.children[4].innerText.trim();
+                document.getElementById('phone').value = tr.children[5].innerText.trim();
+                const roleName = tr.children[6].innerText.trim();
+                const roleSel = document.getElementById('role');
+                const roleRoot = roleSel.closest('.modern-select');
+                const roleTrigger = roleRoot ? roleRoot.querySelector('.ms-trigger') : null;
+                if ((roleName || '').toUpperCase() === 'ADMIN') {
+                    // Show ADMIN as non-editable, keep only ADMIN option and disable select
+                    roleSel.innerHTML = '';
+                    const adminRole = (window.allRoles || []).find(r => String(r.name || '').toUpperCase() === 'ADMIN');
+                    const opt = document.createElement('option');
+                    opt.value = adminRole ? adminRole.id : 'ADMIN';
+                    opt.textContent = adminRole ? adminRole.name : 'ADMIN';
+                    opt.selected = true;
+                    roleSel.appendChild(opt);
+                    roleSel.setAttribute('disabled', 'true');
+                    if (roleTrigger) roleTrigger.setAttribute('disabled','true');
+                } else {
+                    roleSel.removeAttribute('disabled');
+                    if (roleTrigger) roleTrigger.removeAttribute('disabled');
+                    // Repopulate without ADMIN and select current role
+                    populateRoles(allRoles);
+                    Array.from(roleSel.options).forEach(o=>{ if(o.text===roleName) roleSel.value=o.value; });
+                }
+                const statusText = tr.children[7].innerText.trim();
+                document.getElementById('active').value = statusText.includes('Đang') ? 'true' : 'false';
+                window.editingUserId = tr.children[0].innerText.trim();
+                document.getElementById('userModal').classList.add('active');
+                // Đồng bộ hiển thị modern-select
+                syncAllModernSelects();
+                // Fetch current password to prefill (demo purpose only; insecure in production)
+                apiFetch(`${API_BASE}/users/${window.editingUserId}/password`).then(r=>{
+                    if(r && r.success){ pwdInput.value = r.password || ''; }
+                });
+            };
+        });
+        document.querySelectorAll('.action-btn.delete').forEach(btn=>{
+            btn.onclick = async (e)=>{
+                e.preventDefault();
+                const username = btn.getAttribute('data-username');
+                if (!confirm('Xóa người dùng này?')) return;
+                const res = await apiFetch(`${API_BASE}/users/delete/${encodeURIComponent(username)}`, { method:'DELETE'});
+                if (!res) { showNotify('Mạng lỗi khi xóa', 'error'); return; }
+                if (!res.success) { showNotify(res.error || 'Xóa thất bại', 'error'); return; }
+                showNotify('Đã xóa người dùng', 'success');
+                loadData();
+            };
+        });
+        // Toggle password per row
+        document.querySelectorAll('.toggle-pwd').forEach(link=>{
+            link.onclick = async (e)=>{
+                e.preventDefault();
+                const id = link.getAttribute('data-id');
+                const cell = link.closest('.pwd-cell');
+                const icon = link.querySelector('i');
+                const maskEl = cell.querySelector('.pwd-mask');
+                if (cell.getAttribute('data-state') === 'visible') {
+                    cell.setAttribute('data-state','hidden');
+                    maskEl.textContent='••••••••';
+                    maskEl.style.letterSpacing='2px';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                    link.setAttribute('aria-label','Hiển thị mật khẩu');
+                    return;
+                }
+                const res = await apiFetch(`${API_BASE}/users/${id}/password`);
+                if (res && res.success) {
+                    cell.setAttribute('data-state','visible');
+                    maskEl.textContent = (res.password || '');
+                    maskEl.style.letterSpacing='normal';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                    link.setAttribute('aria-label','Ẩn mật khẩu');
+                }
+            };
+        });
+        document.querySelectorAll('.action-btn.toggle-active').forEach(btn=>{
+            btn.onclick = async (e)=>{
+                e.preventDefault();
+                const id = btn.getAttribute('data-id');
+                const active = btn.getAttribute('data-active')==='true';
+                if(!confirm(active?'Khóa user?':'Mở user?')) return;
+                const res = await apiFetch(`${API_BASE}/users/toggle-active/${id}`, { method:'POST'});
+                if (!res) { showNotify('Mạng lỗi khi cập nhật trạng thái', 'error'); return; }
+                if (!res.success) { showNotify('Cập nhật trạng thái thất bại', 'error'); return; }
+                showNotify(active?'Đã khóa user':'Đã mở user', 'success');
+                loadData();
+            };
+        });
+    }
+
+    // ===== Modal handlers =====
+    document.getElementById('addUserBtn').onclick = (e)=>{
+        e.preventDefault();
+        document.getElementById('modalTitle').innerText='Thêm người dùng';
+        document.getElementById('userForm').reset();
+        window.editingUserId = null;
+        const roleSel = document.getElementById('role');
+        const roleRoot = roleSel.closest('.modern-select');
+        const roleTrigger = roleRoot ? roleRoot.querySelector('.ms-trigger') : null;
+        roleSel.removeAttribute('disabled');
+        if (roleTrigger) roleTrigger.removeAttribute('disabled');
+        populateRoles(allRoles);
+        document.getElementById('userModal').classList.add('active');
+        syncAllModernSelects();
+    };
+    document.getElementById('cancelBtn').onclick = ()=>{
+        const modal = document.getElementById('userModal');
+        modal.classList.add('hide');
+        setTimeout(()=>{ modal.classList.remove('active'); modal.classList.remove('hide'); },300);
+    };
+
+    document.getElementById('userForm').onsubmit = async (e)=>{
+        e.preventDefault();
+        const f = e.target;
+        const payload = {
+            username: f.username.value.trim(),
+            password: f.password.value.trim(),
+            fullName: f.fullName.value.trim(),
+            email: f.email.value.trim(),
+            phone: f.phone.value.trim(),
+            active: f.active.value === 'true',
+            role: { id: parseInt(f.role.value) }
+        };
+    const dup = await apiFetch(`${API_BASE}/users/check-duplicate`, { method:'POST', body: JSON.stringify({ username: payload.username, email: payload.email, id: window.editingUserId }), credentials:'include' });
+        if (dup && dup.duplicate) { alert('Tài khoản hoặc email đã tồn tại!'); return; }
+        let url = `${API_BASE}/users/add`; let method='POST';
+        if (window.editingUserId) { url = `${API_BASE}/users/edit/${window.editingUserId}`; method='PUT'; }
+        const res = await apiFetch(url, { method, body: JSON.stringify(payload), credentials:'include' });
+        if (!res) return;
+        if (!res.success) {
+            showNotify(res.error || 'Thao tác thất bại', 'error');
+            return;
+        }
+        showNotify(window.editingUserId ? 'Cập nhật người dùng thành công' : 'Thêm người dùng thành công', 'success');
+        document.getElementById('userModal').classList.remove('active');
+        loadData();
+    };
+
+    // Logout intercept
+    const logoutForm = document.querySelector('form[action="/logout"]');
+    if (logoutForm) {
+        logoutForm.onsubmit = async (e)=>{ e.preventDefault(); await apiFetch(`${AUTH_API}/logout`, { method:'POST'}); window.location.href='/login'; };
+    }
+
+    // ===== Initial load =====
+    async function loadData() {
+        const data = await apiFetch(`${API_BASE}/users`);
+        if (!data || !data.success) return;
+        const current = data.currentUser || {};
+        document.getElementById('sidebarFullName').textContent = current.fullName || current.username || 'Admin';
+        document.getElementById('sidebarRole').textContent = current.role || '';
+        allUsers = data.users || [];
+        currentUsername = current.username || '';
+    allRoles = data.roles || [];
+    window.allRoles = allRoles; // expose for edit-time lookups
+        populateRoles(allRoles);
+        populateRoleFilter(allRoles);
+        renderUsersTable();
+    }
+    document.addEventListener('DOMContentLoaded', async ()=>{
+        await loadData();
+        // Áp dụng deny rules cho các phần tĩnh (ví dụ nút Thêm người dùng)
+        if (window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+        // Khởi tạo modern-select cho các select trong form
+        document.querySelectorAll('[data-enhance-select]').forEach(enhanceModernSelect);
+        syncAllModernSelects();
+        // Bind filters and export
+        const btnExport = document.getElementById('btnExport');
+        if (btnExport) btnExport.addEventListener('click', e=>{ e.preventDefault(); exportUsersCsv(); });
+        [searchInput, roleFilter, activeFilter].forEach(el=>{
+            if(!el) return;
+            el.addEventListener('input', ()=>{ currentPage = 1; renderUsersTable(); });
+            el.addEventListener('change', ()=>{ currentPage = 1; syncAllModernSelects(); renderUsersTable(); });
+        });
+    });
+
+    // ===== Modern Select JS (simplified, matching vehicle UX) =====
+    function enhanceModernSelect(root){
+        const native = root.querySelector('select');
+        const trigger = root.querySelector('.ms-trigger');
+        const list = root.querySelector('.ms-dropdown');
+        if (!native || !trigger || !list) return;
+        function build(){
+            list.innerHTML = '';
+            if (!native.options.length) { list.innerHTML = '<li class="ms-empty">Không có lựa chọn</li>'; return; }
+            Array.from(native.options).forEach(opt => {
+                const li = document.createElement('li');
+                li.className = 'ms-option' + (opt.selected ? ' active' : '');
+                li.tabIndex = 0;
+                li.dataset.value = opt.value;
+                li.textContent = opt.textContent;
+                li.addEventListener('click', ()=> selectValue(opt.value, true));
+                li.addEventListener('keydown', e=>{ if (['Enter',' '].includes(e.key)) { e.preventDefault(); selectValue(opt.value, true); }});
+                list.appendChild(li);
+            });
+        }
+        function selectValue(val, close){
+            native.value = val;
+            trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?.textContent || '';
+            list.querySelectorAll('.ms-option').forEach(li => li.classList.toggle('active', li.dataset.value === val));
+            native.dispatchEvent(new Event('change', { bubbles:true }));
+            if (close) closeDropdown();
+        }
+        function openDropdown(){ root.classList.add('open'); trigger.setAttribute('aria-expanded','true'); }
+        function closeDropdown(){ root.classList.remove('open'); trigger.setAttribute('aria-expanded','false'); }
+        function toggle(){ root.classList.contains('open') ? closeDropdown() : openDropdown(); }
+        trigger.addEventListener('click', toggle);
+        trigger.addEventListener('keydown', e=>{ if (['Enter',' ','ArrowDown'].includes(e.key)) { e.preventDefault(); openDropdown(); const first=list.querySelector('.ms-option'); first && first.focus(); }});
+        document.addEventListener('click', e=>{ if (!root.contains(e.target)) closeDropdown(); });
+        native.addEventListener('change', ()=> selectValue(native.value, false));
+        // init
+        trigger.querySelector('.ms-value').textContent = native.selectedOptions[0]?.textContent || '';
+        build();
+    }
+    function syncAllModernSelects(){
+        document.querySelectorAll('.modern-select').forEach(root => {
+            const native = root.querySelector('select');
+            const val = native.value;
+            const ms = root.querySelector('.ms-value');
+            const list = root.querySelector('.ms-dropdown');
+            if (ms) ms.textContent = native.selectedOptions[0]?.textContent || '';
+            if (list) list.querySelectorAll('.ms-option').forEach(li => li.classList.toggle('active', li.dataset.value === val));
+        });
+    }
+    </script>
+    </div>
+</body>
+</html>

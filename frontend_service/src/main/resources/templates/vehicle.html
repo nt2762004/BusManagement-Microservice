@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý xe buýt</title>
+    <script>
+        // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+        const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/vehicle.css">
+    <script src="/js/role-guard.js"></script>
+</head>
+<body>
+<div class="dashboard admin-dashboard" style="display:flex;">
+    <aside class="sidebar">
+        <div class="logo">
+            <i class="fas fa-bus"></i>
+            <h2>Bus Management</h2>
+        </div>
+        <div class="user-info">
+            <div class="user-avatar"><i class="fas fa-user-shield"></i></div>
+            <h3 id="sidebarFullName"></h3>
+            <p id="sidebarRole"></p>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="/dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/user_mana" class="nav-link"><i class="fas fa-users"></i>Quản lý người dùng</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE, ADMIN"><a href="/buses" class="nav-link active"><i class="fas fa-bus"></i>Quản lý xe buýt</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/drivers" class="nav-link"><i class="fas fa-id-card"></i>Quản lý tài xế</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/routes" class="nav-link"><i class="fas fa-route"></i>Quản lý tuyến đường</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾF, CHỦ NHÀ XE"><a href="/schedules" class="nav-link"><i class="fas fa-calendar"></i>Lịch trình</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/reports" class="nav-link"><i class="fas fa-chart-bar"></i>Báo cáo</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/trips" class="nav-link"><i class="fas fa-flag-checkered"></i>Quản lý chuyến</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/settings" class="nav-link"><i class="fas fa-cog"></i>Cài đặt</a></li>
+        </ul>
+    </aside>
+    <main class="main-content">
+        <div class="header">
+            <h1>Quản lý xe buýt</h1>
+            <form method="get" action="/logout" style="display:inline;">
+                <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i>Đăng xuất</button>
+            </form>
+        </div>
+        <div class="toolbar">
+            <h1><i class="fas fa-bus"></i>Danh sách xe</h1>
+            <div style="display:flex;gap:.5rem;">
+                <a href="#" id="btnAdd" class="action-btn btn-primary" data-deny-roles="ADMIN">Thêm xe</a>
+                <a href="#" id="btnExport" class="action-btn btn-primary" data-deny-roles="ADMIN">Export</a>
+            </div>
+        </div>
+        <div class="filter-bar">
+            <div class="search-group">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Tìm theo biển số">
+            </div>
+
+            <div class="modern-select" data-enhance-select>
+                <select id="statusFilter">
+                    <option value="">-- Trạng thái --</option>
+                    <option value="running">Đang chạy</option>
+                    <option value="idle">Nghỉ</option>
+                    <option value="maintenance">Bảo dưỡng</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Trạng thái --</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+
+            <div class="modern-select" data-enhance-select>
+                <select id="capacityFilter">
+                    <option value="">-- Sức chứa --</option>
+                    <option value="<30">&lt; 30</option>
+                    <option value="30-45">30-45</option>
+                    <option value=">45">&gt; 45</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Sức chứa --</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="vehicle-table">
+                <thead>
+                    <tr>
+                        <th>Biển số</th>
+                        <th>Loại</th>
+                        <th>Số ghế</th>
+                        <th>Năm</th>
+                        <th>Trạng thái</th>
+                        <th>Hoạt động</th>
+                        <th>Lần cập nhật</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="vehicleTbody">
+                    <tr><td colspan="8" style="text-align:center;color:#64748b;">Đang tải...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </main>
+</div>
+
+<div class="modal" id="vehicleModal">
+    <div class="modal-content">
+        <h2 id="vehicleModalTitle"><i class="fas fa-bus"></i><span>Thêm xe</span></h2>
+        <form id="vehicleForm">
+            <input type="hidden" id="vehicleId" />
+            <label for="plateNumber">Biển số</label>
+            <input type="text" id="plateNumber" required placeholder="VD: 30A-12345" autocomplete="off" />
+            <label for="type">Loại xe</label>
+            <input type="text" id="type" required placeholder="Bus / Car ..." />
+            <label for="seatCount">Số ghế</label>
+            <input type="number" id="seatCount" required min="1" />
+            <label for="year">Năm sản xuất</label>
+            <input type="number" id="year" required min="1990" max="2050" />
+            <label for="active">Trạng thái hoạt động</label>
+            <div class="modern-select" data-enhance-select>
+                <select id="active">
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false">Ngừng hoạt động</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Đang hoạt động</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="cancelVehicleBtn" class="btn-cancel">Hủy</button>
+                <button type="submit" class="btn-primary">Lưu</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="statusModal">
+    <div class="modal-content">
+        <h2><i class="fas fa-clipboard-list"></i><span>Cập nhật trạng thái</span></h2>
+        <form id="statusForm">
+            <input type="hidden" id="statusVehicleId" />
+            <label for="statusSelect">Trạng thái</label>
+            <div class="modern-select" data-enhance-select>
+                <select id="statusSelect" required>
+                    <option value="running">Đang chạy</option>
+                    <option value="idle">Nghỉ</option>
+                    <option value="maintenance">Bảo dưỡng</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Đang chạy</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+            <label for="statusNote">Ghi chú</label>
+            <textarea id="statusNote" rows="3" placeholder="Lý do / ghi chú"></textarea>
+            <div class="modal-actions">
+                <button type="button" id="cancelStatusBtn" class="btn-cancel">Hủy</button>
+                <button type="submit" class="btn-primary">Cập nhật</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="notifyBox"></div>
+
+<script>
+// === Constants & API ===
+// Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+const VEHICLE_API = `${GATEWAY_BASE}/api/vehicles`;
+const AUTH_API = `${GATEWAY_BASE}/api/auth/me`;
+// Endpoint dashboard (optional) if want richer data later
+const DASHBOARD_ADMIN_API = `${GATEWAY_BASE}/api/dashboard/admin`;
+
+// === Utility ===
+async function apiFetch(url, options = {}) {
+    const opts = Object.assign({ credentials: 'include' }, options);
+    if (opts.body && !opts.headers) opts.headers = { 'Content-Type': 'application/json' };
+    try {
+        const res = await fetch(url, opts);
+        if (res.status === 401) { window.location.href = '/login'; return null; }
+        return await res.json().catch(() => ({}));
+    } catch (e) {
+        console.error(e);
+        showNotify('Không thể kết nối máy chủ', 'error');
+        return null;
+    }
+}
+
+function showNotify(message, type = 'info', autoHideMs = 3000) {
+    const box = document.getElementById('notifyBox'); if (!box) return;
+    const colors = { success: '#16a34a', error: '#dc2626', info: '#2563eb', warn: '#d97706' };
+    box.style.background = colors[type] || colors.info; box.textContent = message; box.style.display = 'block'; box.style.opacity = '1';
+    if (box._timer) clearTimeout(box._timer);
+    if (autoHideMs > 0) box._timer = setTimeout(() => {
+        box.style.transition = 'opacity .4s'; box.style.opacity = '0';
+        setTimeout(() => { box.style.display = 'none'; box.style.transition = ''; }, 400);
+    }, autoHideMs);
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Định dạng 'HH:mm:ss dd/MM/yyyy' từ chuỗi thời gian backend trả về mà KHÔNG đổi múi giờ
+function formatHmsDMY(val) {
+    if (!val) return '';
+    const s = String(val);
+    // Chuẩn hóa: bỏ 'T', bỏ 'Z' và bỏ offset nếu có (để giữ nguyên giờ theo chuỗi)
+    let norm = s.replace('T', ' ').replace('Z', '').replace(/([+-]\d{2}:?\d{2})$/, '');
+    const m = norm.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return norm; // nếu không khớp ISO, trả nguyên chuỗi đã chuẩn hóa
+    const [, yyyy, mm, dd, HH, MM, SS] = m;
+    return `${HH}:${MM}:${SS} ${dd}/${mm}/${yyyy}`;
+}
+
+// === DOM refs (đảm bảo không dùng global implicit IDs) ===
+const vehicleModal = document.getElementById('vehicleModal');
+const statusModal = document.getElementById('statusModal');
+const vehicleForm = document.getElementById('vehicleForm');
+const statusForm = document.getElementById('statusForm');
+const vehicleIdInput = document.getElementById('vehicleId');
+const plateNumberInput = document.getElementById('plateNumber');
+const typeInput = document.getElementById('type');
+const seatCountInput = document.getElementById('seatCount');
+const yearInput = document.getElementById('year');
+const activeInput = document.getElementById('active');
+const statusVehicleIdInput = document.getElementById('statusVehicleId');
+const statusSelect = document.getElementById('statusSelect');
+const statusNote = document.getElementById('statusNote');
+// Sidebar user info elements
+const sidebarFullNameEl = document.getElementById('sidebarFullName');
+const sidebarRoleEl = document.getElementById('sidebarRole');
+
+const btnAdd = document.getElementById('btnAdd');
+const btnExport = document.getElementById('btnExport');
+const cancelVehicleBtn = document.getElementById('cancelVehicleBtn');
+const cancelStatusBtn = document.getElementById('cancelStatusBtn');
+
+const searchInput = document.getElementById('searchInput');
+const statusFilter = document.getElementById('statusFilter');
+const capacityFilter = document.getElementById('capacityFilter');
+
+let allVehicles = [], currentPage = 1, pageSize = 10;
+
+// === Helpers to render badges ===
+function statusBadge(st) {
+    if (!st) return '<span class="status-inactive">N/A</span>';
+    if (st === 'running') return '<span class="status-active">Đang chạy</span>';
+    if (st === 'maintenance') return '<span class="status-maintenance">Bảo dưỡng</span>';
+    if (st === 'idle') return '<span class="status-inactive" style="background:#e0f2fe;color:#075985;">Nghỉ</span>';
+    return `<span class="status-inactive">${escapeHtml(st)}</span>`;
+}
+function activeSpan(a) { return a ? '<span style="color:#16a34a;font-weight:600;">Đang hoạt động</span>' : '<span style="color:#dc2626;font-weight:600;">Ngừng hoạt động</span>'; }
+
+// === Filtering & rendering ===
+function applyFilters() {
+    const q = (searchInput?.value || '').toLowerCase().trim();
+    const st = statusFilter?.value || '';
+    const cap = capacityFilter?.value || '';
+    return allVehicles.filter(v => {
+        let ok = true;
+        if (q) ok = (v.plateNumber || '').toLowerCase().includes(q);
+        if (ok && st) ok = (v.currentStatus || '') === st;
+        if (ok && cap) {
+            if (cap === '30-45') ok = v.seatCount >= 30 && v.seatCount <= 45;
+            else if (cap === '<30') ok = v.seatCount < 30;
+            else if (cap === '>45') ok = v.seatCount > 45;
+        }
+        return ok;
+    });
+}
+
+function renderTable() {
+    const tbody = document.getElementById('vehicleTbody');
+    const filtered = applyFilters();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const rows = filtered.slice(start, start + pageSize).map(v => {
+        // Hiển thị thời điểm cập nhật của bản ghi vehicle (cột updated_at DB) theo định dạng HH:mm:ss dd/MM/yyyy, không đổi múi giờ
+        const updatedAt = v.updatedAt ? formatHmsDMY(v.updatedAt) : '';
+        return `<tr>
+            <td>${escapeHtml(v.plateNumber || '')}</td>
+            <td>${escapeHtml(v.type || '')}</td>
+            <td>${escapeHtml(v.seatCount ?? '')}</td>
+            <td>${escapeHtml(v.year ?? '')}</td>
+            <td>${statusBadge(v.currentStatus)}</td>
+            <td>${activeSpan(v.active)}</td>
+            
+            <td>${escapeHtml(updatedAt)}</td>
+            <td>
+                <button class="action-btn-inline primary" data-edit="${escapeHtml(v.id)}" data-deny-roles="ADMIN"><i class="fas fa-edit"></i>Sửa</button>
+                <button class="action-btn-inline" data-status="${escapeHtml(v.id)}" data-deny-roles="ADMIN"><i class="fas fa-sync"></i>Trạng thái</button>
+                <button class="action-btn-inline danger" data-del="${escapeHtml(v.id)}" data-deny-roles="ADMIN"><i class="fas fa-trash"></i>Xóa</button>
+            </td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = rows || '<tr><td colspan="8" style="text-align:center;color:#64748b;">Không có dữ liệu</td></tr>';
+    renderPagination(totalPages); bindRowButtons();
+    // Áp dụng disable theo vai trò sau khi render hàng mới
+    if (window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+}
+
+function renderPagination(total) {
+    const pg = document.getElementById('pagination'); let html = '';
+    for (let i = 1; i <= total; i++) html += `<button class="${i === currentPage ? 'active' : ''}" onclick="gotoPage(${i})" ${i===currentPage?'aria-current="page"':''}>${i}</button>`;
+    pg.innerHTML = html;
+}
+function gotoPage(p) { currentPage = p; renderTable(); }
+
+// === CRUD ===
+async function loadVehicles() {
+    const res = await apiFetch(VEHICLE_API);
+    if (!res || !res.success) {
+        showNotify('Lỗi tải dữ liệu', 'error');
+        allVehicles = [];
+        renderTable();
+        return;
+    }
+    allVehicles = res.data || [];
+    renderTable();
+}
+async function createVehicle(payload) {
+    const res = await apiFetch(VEHICLE_API, { method: 'POST', body: JSON.stringify(payload) });
+    if (res && res.success) { showNotify('Thêm xe thành công', 'success'); return true; }
+    showNotify(res?.error || 'Thêm thất bại', 'error'); return false;
+}
+async function updateVehicle(id, payload) {
+    const res = await apiFetch(`${VEHICLE_API}/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    if (res && res.success) { showNotify('Cập nhật thành công', 'success'); return true; }
+    showNotify(res?.error || 'Cập nhật thất bại', 'error'); return false;
+}
+async function deleteVehicle(id) {
+    if (!confirm('Xóa xe ID ' + id + '?')) return;
+    const res = await apiFetch(`${VEHICLE_API}/${id}`, { method: 'DELETE' });
+    if (res && res.success) { showNotify('Đã xóa', 'success'); loadVehicles(); } else showNotify(res?.error || 'Xóa thất bại', 'error');
+}
+async function updateVehicleStatus(id, status, note) {
+    const res = await apiFetch(`${VEHICLE_API}/${id}/status`, { method: 'POST', body: JSON.stringify({ status, note }) });
+    if (res && res.success) { showNotify('Cập nhật trạng thái thành công', 'success'); return true; }
+    showNotify(res?.error || 'Cập nhật thất bại', 'error'); return false;
+}
+
+// === Modals ===
+function openVehicleModal(isEdit = false, v = null) {
+    if (!vehicleModal) return;
+    vehicleModal.classList.add('active');
+    const titleSpan = document.getElementById('vehicleModalTitle')?.querySelector('span');
+    if (titleSpan) titleSpan.textContent = isEdit ? 'Chỉnh sửa xe' : 'Thêm xe';
+    vehicleIdInput.value = v?.id ?? '';
+    plateNumberInput.value = v?.plateNumber ?? '';
+    plateNumberInput.disabled = !!v;
+    typeInput.value = v?.type ?? '';
+    seatCountInput.value = v?.seatCount ?? '';
+    yearInput.value = v?.year ?? new Date().getFullYear();
+    activeInput.value = v?.active ? 'true' : 'false';
+    // đồng bộ hiển thị value của modern-select cho #active
+    const activeRoot = activeInput.closest('.modern-select');
+    if(activeRoot){
+        const triggerVal = activeRoot.querySelector('.ms-value');
+        const selected = activeInput.selectedOptions[0];
+        if(triggerVal && selected) triggerVal.textContent = selected.textContent;
+        // đồng bộ trạng thái 'active' trên dropdown items theo giá trị hiện tại
+        const msCtx = activeRoot._ms;
+        const listEl = msCtx?.list || activeRoot.querySelector('.ms-dropdown');
+        if(listEl){
+            [...listEl.querySelectorAll('.ms-option')].forEach(li => li.classList.toggle('active', li.dataset.value === activeInput.value));
+        }
+    }
+}
+function closeVehicleModal() {
+    if (!vehicleModal) return;
+    vehicleForm.reset();
+    plateNumberInput.disabled = false;
+    vehicleModal.classList.remove('active');
+}
+function openStatusModal(v) {
+    if (!statusModal) return;
+    statusModal.classList.add('active');
+    statusVehicleIdInput.value = v.id;
+    statusSelect.value = v.currentStatus || 'idle';
+    statusNote.value = '';
+    // đồng bộ hiển thị modern-select cho #statusSelect
+    const statusRoot = statusSelect.closest('.modern-select');
+    if(statusRoot){
+        const triggerVal = statusRoot.querySelector('.ms-value');
+        const selected = statusSelect.selectedOptions[0];
+        if(triggerVal && selected) triggerVal.textContent = selected.textContent;
+        // đồng bộ trạng thái 'active' của dropdown items
+        const msCtx = statusRoot._ms;
+        const listEl = msCtx?.list || statusRoot.querySelector('.ms-dropdown');
+        if(listEl){
+            [...listEl.querySelectorAll('.ms-option')].forEach(li => li.classList.toggle('active', li.dataset.value === statusSelect.value));
+        }
+    }
+}
+function closeStatusModal() {
+    if (!statusModal) return;
+    statusForm.reset();
+    statusModal.classList.remove('active');
+}
+
+function bindRowButtons() {
+    document.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
+        const id = btn.getAttribute('data-edit'); const v = allVehicles.find(x => String(x.id) === String(id));
+        if (v) openVehicleModal(true, v);
+    });
+    document.querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteVehicle(btn.getAttribute('data-del')));
+    document.querySelectorAll('[data-status]').forEach(btn => btn.onclick = () => {
+        const id = btn.getAttribute('data-status'); const v = allVehicles.find(x => String(x.id) === String(id));
+        if (v) openStatusModal(v);
+    });
+}
+
+// === Event Listeners ===
+if (btnAdd) btnAdd.addEventListener('click', e => { e.preventDefault(); openVehicleModal(false); });
+if (btnExport) btnExport.addEventListener('click', e => { e.preventDefault(); exportCsv(); });
+if (cancelVehicleBtn) cancelVehicleBtn.addEventListener('click', closeVehicleModal);
+if (cancelStatusBtn) cancelStatusBtn.addEventListener('click', closeStatusModal);
+
+[searchInput, statusFilter, capacityFilter].forEach(el => {
+    if (!el) return;
+    el.addEventListener('input', () => { currentPage = 1; renderTable(); });
+    el.addEventListener('change', () => { currentPage = 1; renderTable(); });
+});
+
+if (vehicleForm) {
+    vehicleForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const id = vehicleIdInput.value;
+        const payload = {
+            plateNumber: plateNumberInput.value.trim(),
+            type: typeInput.value.trim(),
+            seatCount: parseInt(seatCountInput.value, 10) || 0,
+            year: parseInt(yearInput.value, 10) || new Date().getFullYear(),
+            active: activeInput.value === 'true'
+        };
+        let ok;
+        if (id) {
+            const updatePayload = { type: payload.type, seatCount: payload.seatCount, year: payload.year, active: payload.active };
+            ok = await updateVehicle(id, updatePayload);
+        } else ok = await createVehicle(payload);
+        if (ok) { closeVehicleModal(); loadVehicles(); }
+    });
+}
+
+if (statusForm) {
+    statusForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const ok = await updateVehicleStatus(statusVehicleIdInput.value, statusSelect.value, statusNote.value.trim());
+        if (ok) { closeStatusModal(); loadVehicles(); }
+    });
+}
+
+// === Export CSV ===
+function exportCsv() {
+    const filtered = applyFilters();
+    // Export kèm updatedAt (cột updated_at của bảng vehicles)
+    const header = ['id', 'plateNumber', 'type', 'seatCount', 'year', 'currentStatus', 'active', 'updatedAt'];
+    const lines = [header.join(',')].concat(filtered.map(v => header.map(h => `"${(v[h] ?? '').toString().replace(/"/g, '""')}"`).join(',')));
+    const blob = new Blob(["\uFEFF" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'vehicles.csv'; a.click();
+}
+
+// === Init Enhancements ===
+(function initEnhancements() {
+    // Đóng modal khi click ra nền tối
+    [vehicleModal, statusModal].forEach(m => {
+        if (!m) return;
+        m.addEventListener('click', e => { if (e.target === m) { m === vehicleModal ? closeVehicleModal() : closeStatusModal(); } });
+    });
+    // ESC để đóng
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            if (vehicleModal && vehicleModal.classList.contains('active')) closeVehicleModal();
+            if (statusModal && statusModal.classList.contains('active')) closeStatusModal();
+        }
+    });
+})();
+
+// === Modern Select Enhancement (giữ nguyên logic, chỉ đảm bảo hoạt động khi DOM tồn tại) ===
+function enhanceModernSelect(root) {
+    const native = root.querySelector('select');
+    const trigger = root.querySelector('.ms-trigger');
+    const list = root.querySelector('.ms-dropdown');
+    if (!native || !trigger || !list) return;
+    const inModal = !!root.closest('.modal');
+    // expose context so outside code can sync active item even if list is ported
+    root._ms = { native, trigger, list };
+
+    function buildOptions() {
+        list.innerHTML = '';
+        [...native.options].forEach(opt => {
+            const li = document.createElement('li');
+            li.className = 'ms-option' + (opt.selected ? ' active' : '');
+            li.dataset.value = opt.value;
+            li.textContent = opt.textContent;
+            li.role = 'option';
+            li.tabIndex = -1;
+            li.onclick = () => selectValue(opt.value, true);
+            list.appendChild(li);
+        });
+        if (!native.options.length) list.innerHTML = '<li class="ms-empty">Không có lựa chọn</li>';
+    }
+    function selectValue(val, close) {
+        native.value = val;
+        const selectedText = native.selectedOptions[0] ? native.selectedOptions[0].textContent : '';
+        trigger.querySelector('.ms-value').textContent = selectedText;
+        [...list.children].forEach(li => li.classList.toggle('active', li.dataset.value === val));
+        native.dispatchEvent(new Event('change', { bubbles: true }));
+        if (close) closeDropdown();
+    }
+    function openDropdown() {
+        root.classList.add('open'); trigger.setAttribute('aria-expanded', 'true');
+        // sync 'active' class to current native value before showing
+        const selText = native.selectedOptions[0] ? native.selectedOptions[0].textContent : '';
+        const val = native.value;
+        trigger.querySelector('.ms-value').textContent = selText;
+        [...list.querySelectorAll('.ms-option')].forEach(li => li.classList.toggle('active', li.dataset.value === val));
+        positionDropdown();
+        if (list._ported) list.classList.add('show');
+        document.addEventListener('click', outsideHandler);
+        // ensure active item visible
+        const activeLi = list.querySelector('.ms-option.active');
+        if (activeLi) try { activeLi.scrollIntoView({ block: 'nearest' }); } catch(_e) {}
+    }
+    function closeDropdown() {
+        root.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false');
+        if (list._ported) list.classList.remove('show');
+        document.removeEventListener('click', outsideHandler);
+    }
+    function outsideHandler(e) { if (root.contains(e.target)) return; if (list.contains(e.target)) return; closeDropdown(); }
+    function toggle() { root.classList.contains('open') ? closeDropdown() : openDropdown(); }
+
+    /* ===== vị trí & kích thước dropdown — đã sửa ===== */
+    function positionDropdown() {
+        const rect = trigger.getBoundingClientRect();
+        if (inModal) {
+            // Không port ra body, giữ nguyên trong modal để kế thừa fade & z-index
+            list.style.position = 'absolute';
+            list.style.top = '100%';
+            list.style.left = '0';
+            list.style.width = '100%';
+            return;
+        }
+        if (!list._ported) {
+            list._originalParent = root; document.body.appendChild(list); list._ported = true; list.style.position = 'absolute'; list.classList.add('ms-floating');
+        }
+        const triggerWidth = Math.round(rect.width);
+        list.style.width = triggerWidth + 'px';
+        const prevOpacity = list.style.opacity;
+        const prevTransform = list.style.transform;
+        list.style.opacity = '0'; list.style.transform = 'translateY(0) scale(1)';
+        const dropdownRect = list.getBoundingClientRect();
+        const preferBelow = (window.innerHeight - rect.bottom) > dropdownRect.height + 32 || rect.top < dropdownRect.height;
+        let top = preferBelow ? (window.scrollY + rect.bottom + 6) : (window.scrollY + rect.top - dropdownRect.height - 6);
+        let left = window.scrollX + rect.left;
+        const margin = 8;
+        const maxLeft = window.scrollX + window.innerWidth - dropdownRect.width - margin;
+        const minLeft = window.scrollX + margin;
+        left = Math.max(minLeft, Math.min(left, maxLeft));
+        if (top < (window.scrollY + margin)) top = window.scrollY + rect.bottom + 6;
+        list.style.top = top + 'px'; list.style.left = left + 'px';
+        list.style.opacity = prevOpacity; list.style.transform = prevTransform;
+    }
+
+    window.addEventListener('resize', () => { if (root.classList.contains('open')) positionDropdown(); });
+    window.addEventListener('scroll', () => { if (root.classList.contains('open')) positionDropdown(); }, true);
+    trigger.addEventListener('click', toggle);
+    trigger.addEventListener('keydown', e => {
+        if (['Enter', ' ', 'ArrowDown'].includes(e.key)) { e.preventDefault(); openDropdown(); const first = list.querySelector('.ms-option'); first && first.focus(); }
+    });
+    list.addEventListener('keydown', e => {
+        const focusable = [...list.querySelectorAll('.ms-option')];
+        const idx = focusable.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { e.preventDefault(); const next = focusable[Math.min(focusable.length - 1, idx + 1)] || focusable[0]; next.focus(); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); const prev = focusable[Math.max(0, idx - 1)] || focusable[focusable.length - 1]; prev.focus(); }
+        if (e.key === 'Enter') { e.preventDefault(); document.activeElement.click(); }
+        if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); trigger.focus(); }
+    });
+    buildOptions();
+    trigger.querySelector('.ms-value').textContent = native.selectedOptions[0] ? native.selectedOptions[0].textContent : '';
+}
+
+document.querySelectorAll('[data-enhance-select]').forEach(enhanceModernSelect);
+
+// === Start ===
+(async function () { await loadVehicles(); })();
+// === Load current user for sidebar ===
+async function loadCurrentUserForSidebar(){
+    // Prefer dashboard admin endpoint if accessible for role & full name; fallback to auth/me
+    let user = null;
+    try {
+        const dashRes = await apiFetch(DASHBOARD_ADMIN_API);
+        if(dashRes && dashRes.success && dashRes.user){
+            user = dashRes.user;
+        }
+    } catch(e){ console.warn('Dashboard admin fetch failed', e); }
+    if(!user){
+        const authRes = await apiFetch(AUTH_API);
+        if(authRes && authRes.success){ user = authRes.data || authRes.user || authRes; }
+    }
+    if(user){
+        const fullName = user.fullName || user.username || 'Admin';
+        const role = user.role || user.roles || '';
+        if(sidebarFullNameEl) sidebarFullNameEl.textContent = fullName;
+        if(sidebarRoleEl) sidebarRoleEl.textContent = Array.isArray(role)? role.join(', ') : role;
+    }
+}
+document.addEventListener('DOMContentLoaded', loadCurrentUserForSidebar);
+</script>
+</body>
+</html>

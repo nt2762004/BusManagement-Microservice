@@ -1,0 +1,200 @@
+/* CSS đặc thù cho trang Quản lý xe buýt */
+
+/* Status badges - màu riêng cho từng trạng thái xe */
+.status-active {
+    background: #dcfce7;
+    color: #166534;
+    padding: .25rem .55rem;
+    border-radius: 999px;
+    font-size: .63rem;
+    font-weight: 600;
+}
+
+.status-maintenance {
+    background: #fef9c3;
+    color: #854d0e;
+    padding: .25rem .55rem;
+    border-radius: 999px;
+    font-size: .63rem;
+    font-weight: 600;
+}
+
+.status-inactive {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: .25rem .55rem;
+    border-radius: 999px;
+    font-size: .63rem;
+    font-weight: 600;
+}
+
+/* Bo góc bảng vehicle */
+table.vehicle-table thead tr:first-child th:first-child {
+    border-top-left-radius: 15px;
+}
+
+table.vehicle-table thead tr:first-child th:last-child {
+    border-top-right-radius: 15px;
+}
+
+table.vehicle-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 15px;
+}
+
+table.vehicle-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 15px;
+}
+
+/* Cột thao tác - canh giữa và flex layout */
+table.vehicle-table td:last-child {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Modern select enhancements cho trang xe */
+.modern-select .ms-empty {
+    padding: .6rem .8rem;
+    font-size: .75rem;
+    color: #64748b;
+}
+
+.modern-select .ms-search {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    padding: .35rem .4rem .5rem;
+}
+
+.modern-select .ms-search input {
+    width: 100%;
+    padding: .45rem .65rem;
+    border: 1.3px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: .75rem;
+    background: #f8fafc;
+    transition: border-color .2s, background .2s;
+}
+
+.modern-select .ms-search input:focus {
+    outline: none;
+    border-color: #667eea;
+    background: #ffffff;
+    box-shadow: 0 0 0 1.5px #667eea33;
+}
+
+.modern-select .ms-search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+}
+
+.modern-select .ms-dropdown::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modern-select .ms-dropdown::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modern-select .ms-dropdown::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 20px;
+}
+
+.modern-select .ms-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Modal content adjustments */
+.modal-content .modern-select {
+    width: 100%;
+    margin-bottom: .7rem;
+}
+
+.modal-content .modern-select .ms-trigger {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    padding: .55rem .7rem;
+    border-radius: 8px;
+    font-size: .75rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.modal-content .modern-select .ms-trigger .ms-value {
+    flex: 1;
+}
+
+.modal-content .modern-select.open .ms-trigger {
+    transform: none;
+}
+
+.modal-content .modern-select .ms-trigger:hover {
+    border-color: #667eea;
+    box-shadow: 0 0 0 1.5px #667eea33;
+}
+
+/* Floating dropdown adjustments */
+.ms-dropdown.ms-floating {
+    box-sizing: border-box;
+    min-width: unset;
+    max-width: calc(100vw - 16px);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.modern-select .ms-option {
+    padding: .6rem .85rem;
+    line-height: 1.25rem;
+}
+
+.modern-select .ms-option.active:after {
+    content: "\f00c";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    margin-left: auto;
+    font-size: .7rem;
+}
+
+.ms-dropdown.ms-floating .ms-option.active:after {
+    content: "\f00c";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    margin-left: auto;
+    font-size: .7rem;
+}
+
+.btn-secondary {
+    background: #f1f5f9;
+    color: #374151;
+    border: 1px solid #cbd5e1;
+}
+
+.btn-secondary:hover {
+    background: #e2e8f0;
+}
+
+.modal-actions .btn-primary {
+    box-shadow: 0 2px 6px rgba(102, 126, 234, .35);
+}
+
+/* Animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .modern-select .ms-dropdown,
+    .modern-select .ms-trigger {
+        transition: none;
+    }
+}

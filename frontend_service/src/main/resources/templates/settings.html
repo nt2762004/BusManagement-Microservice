@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cài đặt hệ thống</title>
+    <script>
+        // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+        const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/settings.css">
+    <script src="/js/role-guard.js"></script>
+</head>
+<body>
+    <div class="dashboard admin-dashboard" style="display: flex; height: 100vh; overflow: hidden;">
+        <!-- Modal popup sửa vai trò -->
+        <div class="modal" id="editRoleModal">
+            <div class="modal-content" style="max-width:400px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;">
+                    <i class="fas fa-user-tag" style="font-size:2rem;color:#764ba2;"></i>
+                    <h2 style="margin:0;font-size:1.5rem;color:#764ba2;font-weight:700;">Sửa vai trò</h2>
+                </div>
+                <form id="editRoleForm" onsubmit="submitEditRole(event)">
+                    <div id="editRoleErrorBox" style="color:red;margin-bottom:10px;"></div>
+                    <label for="editRoleName">Tên vai trò:</label>
+                    <input type="text" id="editRoleName" required>
+                    <label for="editRoleDesc">Mô tả:</label>
+                    <input type="text" id="editRoleDesc">
+                    <div class="modal-actions" style="margin-top:1.5rem;">
+                        <button type="button" class="action-btn cancel-btn" style="background:#eee;color:#764ba2;border-radius:8px;padding:0.6rem 1.5rem;font-weight:500;" onclick="closeEditRoleModal()">Hủy</button>
+                        <button type="submit" class="action-btn" style="background:#764ba2;color:#fff;border-radius:8px;padding:0.6rem 1.5rem;font-weight:500;">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <aside class="sidebar" style="position: fixed; left: 0; top: 0; height: 100vh; z-index: 100; background: #fff; box-shadow: 2px 0 12px rgba(118,75,162,0.07);">
+            <div class="logo">
+                <i class="fas fa-bus"></i>
+                <h2>Bus Management</h2>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <h3 id="sidebarFullName"></h3>
+                <p id="sidebarRole"></p>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="/dashboard" class="nav-link">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ADMIN">
+                    <a href="/user_mana" class="nav-link">
+                        <i class="fas fa-users"></i>
+                        Quản lý người dùng
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/buses" class="nav-link">
+                        <i class="fas fa-bus"></i>
+                        Quản lý xe buýt
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/drivers" class="nav-link">
+                        <i class="fas fa-id-card"></i>
+                        Quản lý tài xế
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="CHỦ NHÀ XE">
+                    <a href="/routes" class="nav-link">
+                        <i class="fas fa-route"></i>
+                        Quản lý tuyến đường
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾ, CHỦ NHÀ XE">
+                    <a href="/schedules" class="nav-link">
+                        <i class="fas fa-calendar"></i>
+                        Lịch trình
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH">
+                    <a href="/reports" class="nav-link">
+                        <i class="fas fa-chart-bar"></i>
+                        Báo cáo
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE">
+                    <a href="/trips" class="nav-link">
+                        <i class="fas fa-flag-checkered"></i>
+                        Quản lý chuyến
+                    </a>
+                </li>
+                <li class="nav-item" data-roles="ADMIN">
+                    <a href="/settings" class="nav-link active">
+                        <i class="fas fa-cog"></i>
+                        Cài đặt
+                    </a>
+                </li>
+            </ul>
+        </aside>
+    <main class="main-content" style="margin-left: 260px; width: calc(100vw - 260px); height: 100vh; overflow-y: auto;">
+            <div class="header">
+                <h1>Cài đặt hệ thống</h1>
+                <form method="get" action="/logout" style="display:inline;">
+                    <button type="submit" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Đăng xuất
+                    </button>
+                </form>
+            </div>
+            <div class="content-section">
+                <h2 class="section-title"><i class="fas fa-key"></i> Đổi mật khẩu Admin</h2>
+                <form method="post" action="/admin/settings/change-password" class="settings-form">
+                    <div id="changePwdErrorBox" style="color:red;margin-bottom:10px;"></div>
+                    <div class="settings-form">
+                        <label for="oldPassword">Mật khẩu hiện tại:</label>
+                        <input type="password" id="oldPassword" name="oldPassword" placeholder="Nhập mật khẩu hiện tại">
+                        <label for="newPassword">Mật khẩu mới:</label>
+                        <input type="password" id="newPassword" name="newPassword" required placeholder="Nhập mật khẩu mới">
+                    </div>
+                    <button type="button" class="action-btn" onclick="changePassword()">Đổi mật khẩu</button>
+                </form>
+            </div>
+            <div class="content-section">
+                <h2 class="section-title"><i class="fas fa-user-tag"></i> Quản lý phân quyền</h2>
+                <table class="user-table" style="margin-bottom:1rem;">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên vai trò</th>
+                            <th>Mô tả</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rolesTbody"><!-- dynamic --></tbody>
+                </table>
+                <form class="settings-form" style="margin-top:1rem;" onsubmit="return false;">
+                <div id="roleErrorBox" style="color:red;margin-bottom:10px;"></div>
+                    <div class="settings-form">
+                        <label for="roleName">Tên vai trò mới:</label>
+                        <input type="text" id="roleName" name="roleName" class="form-control custom-input input-50" required>
+                        <label for="roleDesc">Mô tả:</label>
+                        <input type="text" id="roleDesc" name="roleDesc" class="form-control custom-input input-50">
+                    </div>
+                    <button type="button" class="action-btn" onclick="addRole()">Thêm vai trò</button>
+                </form>
+            </div>
+        </main>
+    </div>
+ </body>
+<script>
+// ===== Session + Roles Dynamic Load via API Gateway =====
+// Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+async function apiCall(url, options = {}) {
+    const opts = Object.assign({ credentials: 'include' }, options);
+    if (opts.body && !opts.headers) opts.headers = { 'Content-Type': 'application/json' };
+    try {
+        const res = await fetch(url, opts);
+        if (res.status === 401) { window.location.href = '/login'; return null; }
+        const data = await res.json().catch(()=>({}));
+        if (data.success === false && data.error === 'Chưa đăng nhập') { window.location.href = '/login'; return null; }
+        return data;
+    } catch (e) { console.error(e); alert('Không thể kết nối máy chủ'); return null; }
+}
+function renderRolesDynamic(list){
+    const tbody = document.getElementById('rolesTbody'); if(!tbody) return; tbody.innerHTML='';
+    list.forEach(r => {
+        const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="role-id">${r.id}</td><td>${r.name}</td><td>${r.description||''}</td><td><a href="#" class="action-btn" onclick="openEditRoleModal(this,event)">Sửa</a> <a href="#" class="action-btn delete" onclick="deleteRole(this,event)">Xóa</a></td>`;
+        tbody.appendChild(tr);
+    });
+    if (window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+}
+async function hydrateSettings(){
+    const data = await apiCall(GATEWAY_BASE + '/api/admin/settings');
+    if(!data || !data.success) return;
+    const u = data.currentUser || {};
+    const name = u.fullName || u.username || 'Admin';
+    const fullEl = document.getElementById('sidebarFullName'); if(fullEl) fullEl.textContent = name;
+    const roleEl = document.getElementById('sidebarRole'); if(roleEl) roleEl.textContent = u.role || '';
+    renderRolesDynamic(data.roles || []);
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+    hydrateSettings();
+    if (window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+    const logoutForm = document.querySelector('form[action="/logout"]');
+    if (logoutForm) {
+        logoutForm.onsubmit = async (e)=>{ e.preventDefault(); await apiCall(GATEWAY_BASE + '/api/auth/logout', { method:'POST'}); window.location.href='/login'; };
+    }
+});
+</script>
+<script>
+// Sửa vai trò dạng modal
+let editingRoleId = null;
+function openEditRoleModal(btn, event) {
+    event.preventDefault();
+    var tr = btn.closest('tr');
+    editingRoleId = tr.querySelector('.role-id').innerText.trim();
+    var name = tr.children[1].innerText.trim();
+    var desc = tr.children[2].innerText.trim();
+    document.getElementById('editRoleName').value = name;
+    document.getElementById('editRoleDesc').value = desc;
+    document.getElementById('editRoleErrorBox').innerText = '';
+    document.getElementById('editRoleModal').classList.add('active');
+}
+function closeEditRoleModal() {
+    const modal = document.getElementById('editRoleModal');
+    modal.classList.add('hide');
+    setTimeout(() => {
+        modal.classList.remove('active');
+        modal.classList.remove('hide');
+    }, 300);
+    editingRoleId = null;
+}
+function submitEditRole(e) {
+    if (e) e.preventDefault();
+    var name = document.getElementById('editRoleName').value.trim();
+    var desc = document.getElementById('editRoleDesc').value.trim();
+    var errorBox = document.getElementById('editRoleErrorBox');
+    errorBox.innerText = '';
+    if (!name) {
+        errorBox.innerText = 'Tên vai trò không được để trống!';
+        return;
+    }
+    fetch(GATEWAY_BASE + '/api/admin/settings/edit-role/' + encodeURIComponent(editingRoleId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, description: desc }),
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Cập nhật lại dòng trong bảng
+            var rows = document.querySelectorAll('.user-table tbody tr');
+            for (var i = 0; i < rows.length; i++) {
+                var rid = rows[i].querySelector('.role-id').innerText.trim();
+                if (rid === editingRoleId) {
+                    rows[i].children[1].innerText = name;
+                    rows[i].children[2].innerText = desc;
+                    break;
+                }
+            }
+            closeEditRoleModal();
+        } else {
+            errorBox.innerText = data.error || 'Sửa vai trò thất bại!';
+        }
+    })
+    .catch(() => {
+        errorBox.innerText = 'Lỗi hệ thống!';
+    });
+}
+function changePassword() {
+    var oldPwd = document.getElementById('oldPassword').value;
+    var newPwd = document.getElementById('newPassword').value;
+    var errorBox = document.getElementById('changePwdErrorBox');
+    errorBox.innerText = '';
+    if (!oldPwd || !newPwd) {
+        errorBox.innerText = 'Vui lòng nhập đầy đủ thông tin!';
+        return;
+    }
+    fetch(GATEWAY_BASE + '/api/admin/settings/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd }),
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            errorBox.style.color = 'green';
+            errorBox.innerText = 'Đổi mật khẩu thành công!';
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+        } else {
+            errorBox.style.color = 'red';
+            errorBox.innerText = data.error || 'Đổi mật khẩu thất bại!';
+        }
+    })
+    .catch(() => {
+        errorBox.style.color = 'red';
+        errorBox.innerText = 'Lỗi hệ thống!';
+    });
+}
+function deleteRole(btn, event) {
+    event.preventDefault();
+    var tr = btn.closest('tr');
+    var roleId = tr.querySelector('.role-id').innerText.trim();
+    if (!roleId) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa vai trò này?')) return;
+    var errorBox = document.getElementById('roleErrorBox');
+    errorBox.innerText = '';
+    fetch(GATEWAY_BASE + '/api/admin/settings/delete-role/' + encodeURIComponent(roleId), {
+        method: 'DELETE',
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            tr.parentNode.removeChild(tr);
+        } else {
+            errorBox.innerText = data.error || 'Xóa vai trò thất bại!';
+        }
+    })
+    .catch(() => {
+        errorBox.innerText = 'Lỗi hệ thống!';
+    });
+}
+
+function addRole() {
+    var name = document.getElementById('roleName').value.trim();
+    var desc = document.getElementById('roleDesc').value.trim();
+    var errorBox = document.getElementById('roleErrorBox');
+    errorBox.innerText = '';
+    if (!name) {
+        errorBox.innerText = 'Tên vai trò không được để trống!';
+        return;
+    }
+    fetch(GATEWAY_BASE + '/api/admin/settings/add-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, description: desc }),
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success && data.role) {
+            var tbody = document.querySelector('.user-table tbody');
+            var tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="role-id">${data.role.id}</td>
+                <td>${data.role.name}</td>
+                <td>${data.role.description}</td>
+                <td>
+                    <a href="#" class="action-btn">Sửa</a>
+                    <a href="#" class="action-btn delete" onclick="deleteRole(this, event)">Xóa</a>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            document.getElementById('roleName').value = '';
+            document.getElementById('roleDesc').value = '';
+        } else {
+            errorBox.innerText = data.error || 'Thêm vai trò thất bại!';
+        }
+    })
+    .catch(() => {
+        errorBox.innerText = 'Lỗi hệ thống!';
+    });
+}
+</script>
+</html>

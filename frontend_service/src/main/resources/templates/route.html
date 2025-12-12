@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý tuyến đường</title>
+    <script>
+      // Khai báo biến toàn cục trước để role-guard.js và các file khác dùng được
+      const GATEWAY_BASE = '[[${gatewayUrl}]]' || 'http://localhost:8080';
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/route.css">
+    <script src="/js/role-guard.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- Basic SEO/OG -->
+    <meta name="robots" content="noindex">
+    <meta property="og:title" content="Quản lý tuyến đường">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="vi_VN">
+    <meta name="color-scheme" content="light">
+</head>
+<body>
+<div class="dashboard admin-dashboard" style="display:flex;">
+    <aside class="sidebar">
+        <div class="logo">
+            <i class="fas fa-bus"></i>
+            <h2>Bus Management</h2>
+        </div>
+        <div class="user-info">
+            <div class="user-avatar"><i class="fas fa-user-shield"></i></div>
+            <h3 id="sidebarFullName"></h3>
+            <p id="sidebarRole"></p>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="/dashboard" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/user_mana" class="nav-link"><i class="fas fa-users"></i>Quản lý người dùng</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE, ADMIN"><a href="/buses" class="nav-link"><i class="fas fa-bus"></i>Quản lý xe buýt</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/drivers" class="nav-link"><i class="fas fa-id-card"></i>Quản lý tài xế</a></li>
+            <li class="nav-item" data-roles="CHỦ NHÀ XE"><a href="/routes" class="nav-link active"><i class="fas fa-route"></i>Quản lý tuyến đường</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, TÀI XẾF, CHỦ NHÀ XE"><a href="/schedules" class="nav-link"><i class="fas fa-calendar"></i>Lịch trình</a></li>
+            <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/reports" class="nav-link"><i class="fas fa-chart-bar"></i>Báo cáo</a></li>
+      <li class="nav-item" data-roles="ĐIỀU HÀNH, CHỦ NHÀ XE"><a href="/trips" class="nav-link"><i class="fas fa-flag-checkered"></i>Quản lý chuyến</a></li>
+            <li class="nav-item" data-roles="ADMIN"><a href="/settings" class="nav-link"><i class="fas fa-cog"></i>Cài đặt</a></li>
+        </ul>
+    </aside>
+    <main class="main-content">
+        <div class="header">
+            <h1>Quản lý tuyến đường</h1>
+            <form method="get" action="/logout" style="display:inline;">
+                <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i>Đăng xuất</button>
+            </form>
+        </div>
+        <div class="toolbar">
+            <h1><i class="fas fa-route"></i>Danh sách tuyến</h1>
+            <div style="display:flex;gap:.5rem;">
+                <a href="#" id="btnAdd" class="action-btn btn-primary" data-deny-roles="ADMIN">Thêm tuyến</a>
+                <a href="#" id="btnExport" class="action-btn btn-primary" data-deny-roles="ADMIN">Export</a>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <div class="search-group">
+              <i class="fas fa-search"></i>
+              <input type="text" id="searchInput" placeholder="Tìm theo tên/điểm đầu/cuối">
+            </div>
+
+            <div class="modern-select" data-enhance-select>
+                <select id="activeFilter">
+                    <option value="">-- Trạng thái --</option>
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false">Ngừng hoạt động</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">-- Trạng thái --</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+      <table class="route-table">
+                <thead>
+                  <tr>
+              <th>Tên tuyến</th>
+              <th>Điểm đầu</th>
+              <th>Điểm cuối</th>
+              <th>Quãng đường (km)</th>
+              <th>Thời gian (phút)</th>
+              <th>Hoạt động</th>
+              <th>Lần cập nhật</th>
+              <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="routeTbody">
+              <tr><td colspan="8" style="text-align:center;color:#64748b;">Đang tải...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal: thêm/sửa tuyến -->
+<div class="modal" id="routeModal">
+    <div class="modal-content">
+        <h2 id="routeModalTitle"><i class="fas fa-route"></i><span>Thêm tuyến</span></h2>
+    <form id="routeForm">
+            <input type="hidden" id="routeId" />
+      <label for="originId">Điểm đầu</label>
+      <div class="modern-select" data-enhance-select>
+        <select id="originId" required></select>
+        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Chọn điểm đầu</span><span class="ms-caret"></span></button>
+        <ul class="ms-dropdown" role="listbox"></ul>
+      </div>
+      <label for="destinationId">Điểm cuối</label>
+      <div class="modern-select" data-enhance-select>
+        <select id="destinationId" required></select>
+        <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Chọn điểm cuối</span><span class="ms-caret"></span></button>
+        <ul class="ms-dropdown" role="listbox"></ul>
+      </div>
+            <label for="distanceKm">Quãng đường (km)</label>
+            <input type="number" id="distanceKm" required min="0" step="0.1" />
+            <label for="durationMin">Thời gian (phút)</label>
+            <input type="number" id="durationMin" required min="0" />
+            <label for="active">Trạng thái</label>
+            <div class="modern-select" data-enhance-select>
+                <select id="active">
+                    <option value="true">Đang hoạt động</option>
+                    <option value="false">Ngừng hoạt động</option>
+                </select>
+                <button type="button" class="ms-trigger" aria-haspopup="listbox" aria-expanded="false"><span class="ms-value">Đang hoạt động</span><span class="ms-caret"></span></button>
+                <ul class="ms-dropdown" role="listbox"></ul>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="cancelRouteBtn" class="btn-cancel">Hủy</button>
+                <button type="submit" class="btn-primary">Lưu</button>
+            </div>
+        </form>
+    </div>
+    </div>
+
+<div id="notifyBox" style="position:fixed; top:15px; right:15px; display:none; min-width:260px; padding:12px 18px; border-radius:8px; font-weight:500; font-size:14px; background:#323232; color:#fff; box-shadow:0 4px 18px rgba(0,0,0,.18);"></div>
+
+<script>
+// API base
+// Thymeleaf sẽ điền URL thật vào đây. Nếu chạy file tĩnh thì fallback về localhost
+const ROUTE_API = `${GATEWAY_BASE}/api/routes`;
+const TRIP_API = `${GATEWAY_BASE}/api/trips`; // dùng để kiểm tra và cập nhật chuyến khi xóa tuyến
+const LOCATIONS_API = `${GATEWAY_BASE}/api/locations`;
+const AUTH_API = `${GATEWAY_BASE}/api/auth/me`;
+
+// Utils
+async function apiFetch(url, options = {}) {
+  const opts = Object.assign({ credentials: 'include' }, options);
+  if (opts.body && !opts.headers) opts.headers = { 'Content-Type': 'application/json' };
+  try {
+    const res = await fetch(url, opts);
+    if (res.status === 401) { window.location.href = '/login'; return null; }
+    return await res.json().catch(() => ({}));
+  } catch (e) {
+    console.error(e); showNotify('Không thể kết nối máy chủ', 'error'); return null;
+  }
+}
+function showNotify(message, type = 'info', autoHideMs = 3000) {
+  const box = document.getElementById('notifyBox'); if (!box) return;
+  const colors = { success: '#16a34a', error: '#dc2626', info: '#2563eb', warn: '#d97706' };
+  box.style.background = colors[type] || colors.info; box.textContent = message; box.style.display = 'block'; box.style.opacity = '1';
+  if (box._timer) clearTimeout(box._timer);
+  if (autoHideMs > 0) box._timer = setTimeout(() => { box.style.transition = 'opacity .4s'; box.style.opacity = '0'; setTimeout(() => { box.style.display = 'none'; box.style.transition = ''; }, 400); }, autoHideMs);
+}
+function escapeHtml(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function formatHmsDMY(val){
+  if (!val) return '';
+  try {
+    let s = String(val);
+    // If server returns 'YYYY-MM-DD HH:mm:ss' (no timezone), normalize so Date can parse
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+      s = s.replace(' ', 'T');
+    }
+    const d = new Date(s);
+    if (isNaN(d)) return String(val);
+    // Force display in UTC (Etc/GMT-0)
+    const fmt = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Etc/GMT-0',
+      hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    const parts = Object.fromEntries(fmt.formatToParts(d).map(p => [p.type, p.value]));
+    return `${parts.hour}:${parts.minute}:${parts.second} ${parts.day}/${parts.month}/${parts.year}`;
+  } catch (_) {
+    return String(val);
+  }
+}
+
+// Sidebar user info
+const sidebarFullNameEl = document.getElementById('sidebarFullName');
+const sidebarRoleEl = document.getElementById('sidebarRole');
+function resolveUserInfo(resp){
+  const u = (resp && (resp.data || resp.user)) || resp || {};
+  const fullName = u.fullName || u.fullname || u.name || u.username || u.email || 'User';
+  const rawRoles = u.role || u.roles || u.authorities || [];
+  const roles = Array.isArray(rawRoles)
+    ? rawRoles.map(x => typeof x === 'string' ? x : (x.name || x.role || x.authority || '')).filter(Boolean)
+    : (typeof rawRoles === 'string' ? [rawRoles] : []);
+  return { fullName, roles };
+}
+async function loadCurrentUserForSidebar(){
+  const authRes = await apiFetch(AUTH_API);
+  if(!authRes) return;
+  const { fullName, roles } = resolveUserInfo(authRes);
+  if(sidebarFullNameEl) sidebarFullNameEl.textContent = fullName;
+  if(sidebarRoleEl) sidebarRoleEl.textContent = roles.join(', ');
+  window.__userRole = roles.join(', ');
+  if(typeof window.applyDenyRoles === 'function') window.applyDenyRoles(window.__userRole);
+}
+document.addEventListener('DOMContentLoaded', loadCurrentUserForSidebar);
+
+// DOM refs
+const btnAdd = document.getElementById('btnAdd');
+const btnExport = document.getElementById('btnExport');
+const searchInput = document.getElementById('searchInput');
+const activeFilter = document.getElementById('activeFilter');
+const routeTbody = document.getElementById('routeTbody');
+const pagination = document.getElementById('pagination');
+
+const routeModal = document.getElementById('routeModal');
+const routeForm = document.getElementById('routeForm');
+const cancelRouteBtn = document.getElementById('cancelRouteBtn');
+const routeIdInput = document.getElementById('routeId');
+const originSelect = document.getElementById('originId');
+const destinationSelect = document.getElementById('destinationId');
+const distanceKmInput = document.getElementById('distanceKm');
+const durationMinInput = document.getElementById('durationMin');
+const activeInput = document.getElementById('active');
+
+let allRoutes = [], allLocations = [], currentPage = 1, pageSize = 10;
+let locationMap = new Map();
+
+function activeSpan(a){ return a ? '<span style="color:#16a34a;font-weight:600;">Đang hoạt động</span>' : '<span style="color:#dc2626;font-weight:600;">Ngừng hoạt động</span>'; }
+
+function normalizeText(s){
+  const str = s==null ? '' : String(s);
+  try { return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); } catch(_) { return str.toLowerCase(); }
+}
+function applyFilters(){
+  const qRaw=(searchInput?.value||'').trim();
+  const q=normalizeText(qRaw);
+  const act=activeFilter?.value||'';
+  return allRoutes.filter(r=>{
+    const oName = r.originName || locationMap.get(r.originId)?.name || '';
+    const dName = r.destinationName || locationMap.get(r.destinationId)?.name || '';
+    const routeName = `${oName} - ${dName}`;
+    let ok=true;
+    if(q){
+      ok = normalizeText(routeName).includes(q)
+        || normalizeText(oName).includes(q)
+        || normalizeText(dName).includes(q);
+    }
+    if(ok && act){
+      if(act==='true') ok = r.active===true; else if(act==='false') ok = r.active===false;
+    }
+    return ok;
+  });
+}
+
+function renderPagination(total){
+  let html='';
+  for(let i=1;i<=total;i++) html+=`<button class="${i===currentPage?'active':''}" onclick="gotoPage(${i})" ${i===currentPage?'aria-current="page"':''}>${i}</button>`;
+  pagination.innerHTML=html;
+}
+function gotoPage(p){ currentPage=p; renderTable(); }
+
+function renderTable(){
+  const filtered = applyFilters();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  if(currentPage>totalPages) currentPage = totalPages;
+  const start=(currentPage-1)*pageSize;
+  const rows = filtered.slice(start, start+pageSize).map(r=>{
+  const updatedAt = r.updatedAt ? formatHmsDMY(r.updatedAt) : '';
+    const routeName = `${r.originName||''} - ${r.destinationName||''}`;
+    return `<tr>
+      <td>${escapeHtml(routeName)}</td>
+      <td>${escapeHtml(r.originName||'')}</td>
+      <td>${escapeHtml(r.destinationName||'')}</td>
+      <td>${escapeHtml(r.distanceKm??'')}</td>
+      <td>${escapeHtml(r.durationMin??'')}</td>
+      <td>${activeSpan(r.active)}</td>
+      <td>${escapeHtml(updatedAt)}</td>
+      <td>
+        <button class="action-btn-inline" data-edit="${escapeHtml(r.id)}" data-deny-roles="ADMIN"><i class="fas fa-edit"></i>Sửa</button>
+        <button class="action-btn-inline danger" data-del="${escapeHtml(r.id)}" data-deny-roles="ADMIN"><i class="fas fa-trash"></i>Xóa</button>
+      </td>
+    </tr>`;
+  }).join('');
+  routeTbody.innerHTML = rows || '<tr><td colspan="8" style="text-align:center;color:#64748b;">Không có dữ liệu</td></tr>';
+  renderPagination(totalPages);
+  bindRowButtons();
+  if(window.applyDenyRoles && window.__userRole) window.applyDenyRoles(window.__userRole);
+}
+
+// CRUD calls (match vehicle style endpoints)
+async function loadRoutes(){
+  const res = await apiFetch(ROUTE_API);
+  if(!res || !res.success){ showNotify('Lỗi tải dữ liệu', 'error'); allRoutes=[]; renderTable(); return; }
+  const raw = res.data || [];
+  allRoutes = raw.map(r=>({
+    ...r,
+    originName: r.originName || locationMap.get(r.originId)?.name || '',
+    destinationName: r.destinationName || locationMap.get(r.destinationId)?.name || ''
+  }));
+  renderTable();
+}
+async function createRoute(payload){
+  const res = await apiFetch(ROUTE_API, { method:'POST', body: JSON.stringify(payload) });
+  if(res && res.success){ showNotify('Thêm tuyến thành công', 'success'); return true; }
+  showNotify(res?.error||'Thêm thất bại', 'error'); return false;
+}
+async function updateRoute(id, payload){
+  const res = await apiFetch(`${ROUTE_API}/${id}`, { method:'PUT', body: JSON.stringify(payload) });
+  if(res && res.success){ showNotify('Cập nhật thành công', 'success'); return true; }
+  showNotify(res?.error||'Cập nhật thất bại', 'error'); return false;
+}
+async function deleteRoute(id){
+  if(!confirm('Xóa tuyến ID '+id+'?')) return;
+  // 1. Lấy danh sách chuyến liên quan đến tuyến này
+  const tripsRes = await apiFetch(TRIP_API);
+  if(!tripsRes || !tripsRes.success){ showNotify('Không lấy được danh sách chuyến để kiểm tra', 'error'); return; }
+  const relatedTrips = (tripsRes.data||[]).filter(t => String(t.routeId) === String(id));
+  // 2. Nếu có chuyến đang chạy thì chặn xóa
+  const running = relatedTrips.filter(t => t.status === 'IN_PROGRESS');
+  if(running.length){ showNotify('Không thể xóa: còn chuyến đang chạy', 'warn'); return; }
+  // 3. Chuẩn bị hủy các chuyến chưa chạy
+  const notStarted = relatedTrips.filter(t => t.status === 'NOT_STARTED');
+  // 4. Gọi xóa tuyến
+  const res = await apiFetch(`${ROUTE_API}/${id}`, { method:'DELETE' });
+  if(res && res.success){
+    // 5. Với các chuyến chưa chạy -> cập nhật trạng thái thành CANCELLED
+    for(const trip of notStarted){
+      await apiFetch(`${TRIP_API}/${trip.id}`, { method:'PUT', body: JSON.stringify({ status: 'CANCELLED' }) });
+    }
+    showNotify('Đã xóa tuyến. '+ (notStarted.length? `${notStarted.length} chuyến chưa chạy đã chuyển sang Hủy.`:'') , 'success');
+    loadRoutes();
+  } else {
+    showNotify(res?.error||'Xóa thất bại', 'error');
+  }
+}
+
+// Modal helpers
+function openRouteModal(isEdit=false, r=null){
+  routeModal.classList.add('active');
+  const titleSpan = document.getElementById('routeModalTitle')?.querySelector('span');
+  if(titleSpan) titleSpan.textContent = isEdit ? 'Chỉnh sửa tuyến' : 'Thêm tuyến';
+  routeIdInput.value = r?.id ?? '';
+  // set selects
+  if (originSelect) originSelect.value = r?.originId ?? '';
+  if (destinationSelect) destinationSelect.value = r?.destinationId ?? '';
+  // không cho đổi điểm đầu/cuối khi sửa (đồng bộ với backend)
+  if (isEdit) { originSelect.disabled = true; destinationSelect.disabled = true; }
+  else { originSelect.disabled = false; destinationSelect.disabled = false; }
+  distanceKmInput.value = r?.distanceKm ?? 0;
+  durationMinInput.value = r?.durationMin ?? 0;
+  activeInput.value = r?.active ? 'true' : 'false';
+  // sync modern-select label
+  const activeRoot = activeInput.closest('.modern-select');
+  if(activeRoot){
+    const triggerVal = activeRoot.querySelector('.ms-value');
+    const selected = activeInput.selectedOptions[0];
+    if(triggerVal && selected) triggerVal.textContent = selected.textContent;
+    const msCtx = activeRoot._ms; const listEl = msCtx?.list || activeRoot.querySelector('.ms-dropdown');
+    if(listEl) [...listEl.querySelectorAll('.ms-option')].forEach(li => li.classList.toggle('active', li.dataset.value === activeInput.value));
+  }
+  // sync origin/destination selects labels
+  [originSelect, destinationSelect].forEach(sel => {
+    const root = sel?.closest('.modern-select'); if(!root) return;
+    const triggerVal = root.querySelector('.ms-value');
+    const selected = sel.selectedOptions[0];
+    if(triggerVal && selected) triggerVal.textContent = selected.textContent;
+    const msCtx = root._ms; const listEl = msCtx?.list || root.querySelector('.ms-dropdown');
+    if(listEl) [...listEl.querySelectorAll('.ms-option')].forEach(li => li.classList.toggle('active', li.dataset.value === sel.value));
+  });
+}
+function closeRouteModal(){
+  routeForm.reset();
+  routeModal.classList.remove('active');
+}
+
+function bindRowButtons(){
+  document.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
+    const id = btn.getAttribute('data-edit'); const r = allRoutes.find(x => String(x.id)===String(id)); if(r) openRouteModal(true, r);
+  });
+  document.querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteRoute(btn.getAttribute('data-del')));
+}
+
+// Events
+if(btnAdd) btnAdd.addEventListener('click', e=>{ e.preventDefault(); openRouteModal(false); });
+if(btnExport) btnExport.addEventListener('click', e=>{ e.preventDefault(); exportCsv(); });
+if(cancelRouteBtn) cancelRouteBtn.addEventListener('click', closeRouteModal);
+if(searchInput) searchInput.addEventListener('input', ()=>{ currentPage=1; renderTable(); });
+if(activeFilter) activeFilter.addEventListener('change', ()=>{ currentPage=1; renderTable(); });
+if(routeForm){
+  routeForm.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const id = routeIdInput.value;
+    const payload = {
+      originId: originSelect.value ? parseInt(originSelect.value,10) : null,
+      destinationId: destinationSelect.value ? parseInt(destinationSelect.value,10) : null,
+      distanceKm: parseFloat(distanceKmInput.value)||0,
+      durationMin: parseInt(durationMinInput.value,10)||0,
+      active: activeInput.value==='true'
+    };
+    let ok; if(id){
+      // backend yêu cầu originId/destinationId không null trong validate
+      const updatePayload = { originId: payload.originId, destinationId: payload.destinationId, distanceKm: payload.distanceKm, durationMin: payload.durationMin, active: payload.active };
+      ok = await updateRoute(id, updatePayload);
+    } else ok = await createRoute(payload);
+    if(ok){ closeRouteModal(); loadRoutes(); }
+  });
+}
+
+// Export CSV
+function exportCsv(){
+  const filtered = applyFilters();
+  const header = ['id','originName','destinationName','distanceKm','durationMin','active','updatedAt'];
+  // Map rows to ensure timezone/format matches on-screen display
+  const lines = [header.join(',')].concat(filtered.map(r=> {
+    const record = {
+      id: r.id ?? '',
+      originName: r.originName ?? '',
+      destinationName: r.destinationName ?? '',
+      distanceKm: r.distanceKm ?? '',
+      durationMin: r.durationMin ?? '',
+      // Keep active consistent with UI wording rather than true/false
+      active: r.active ? 'Đang hoạt động' : 'Ngừng hoạt động',
+      // Use the same formatter used in the table (UTC display)
+      updatedAt: r.updatedAt ? formatHmsDMY(r.updatedAt) : ''
+    };
+    return header.map(h => `"${(record[h]??'').toString().replace(/"/g,'""')}"`).join(',');
+  }));
+  const blob = new Blob(["\uFEFF"+lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='routes.csv'; a.click();
+}
+
+// Modern Select enhancer (subset)
+function enhanceModernSelect(root){
+  const native = root.querySelector('select'); const trigger=root.querySelector('.ms-trigger'); const list=root.querySelector('.ms-dropdown');
+  if(!native||!trigger||!list) return; const inModal = !!root.closest('.modal'); root._ms = { native, trigger, list };
+  function build(){ list.innerHTML=''; [...native.options].forEach(opt=>{ const li=document.createElement('li'); li.className='ms-option'+(opt.selected?' active':''); li.dataset.value=opt.value; li.textContent=opt.textContent; li.role='option'; li.tabIndex=-1; li.onclick=()=>selectValue(opt.value,true); list.appendChild(li); }); if(!native.options.length) list.innerHTML='<li class="ms-empty">Không có lựa chọn</li>'; }
+  function selectValue(v, close){ native.value=v; const t= native.selectedOptions[0]?native.selectedOptions[0].textContent:''; trigger.querySelector('.ms-value').textContent=t; [...list.children].forEach(li=>li.classList.toggle('active', li.dataset.value===v)); native.dispatchEvent(new Event('change',{bubbles:true})); if(close) closeDropdown(); }
+  function openDropdown(){ root.classList.add('open'); trigger.setAttribute('aria-expanded','true'); const t=native.selectedOptions[0]?native.selectedOptions[0].textContent:''; const v=native.value; trigger.querySelector('.ms-value').textContent=t; [...list.querySelectorAll('.ms-option')].forEach(li=>li.classList.toggle('active', li.dataset.value===v)); position(); if(list._ported) list.classList.add('show'); document.addEventListener('click', outside); const act=list.querySelector('.ms-option.active'); if(act) try{ act.scrollIntoView({block:'nearest'});}catch(_){} }
+  function closeDropdown(){ root.classList.remove('open'); trigger.setAttribute('aria-expanded','false'); if(list._ported) list.classList.remove('show'); document.removeEventListener('click', outside); }
+  function outside(e){ if(root.contains(e.target)) return; if(list.contains(e.target)) return; closeDropdown(); }
+  function toggle(){ root.classList.contains('open')? closeDropdown(): openDropdown(); }
+  function position(){ const rect=trigger.getBoundingClientRect(); if(inModal){ list.style.position='absolute'; list.style.top='100%'; list.style.left='0'; list.style.width='100%'; return; } if(!list._ported){ list._originalParent=root; document.body.appendChild(list); list._ported=true; list.style.position='absolute'; list.classList.add('ms-floating'); } list.style.width=Math.round(rect.width)+'px'; const prevO=list.style.opacity, prevT=list.style.transform; list.style.opacity='0'; list.style.transform='translateY(0) scale(1)'; const dr=list.getBoundingClientRect(); const preferBelow = (window.innerHeight-rect.bottom) > dr.height+32 || rect.top < dr.height; let top = preferBelow? (window.scrollY+rect.bottom+6) : (window.scrollY+rect.top-dr.height-6); let left=window.scrollX+rect.left; const margin=8; const maxLeft=window.scrollX+window.innerWidth-dr.width-margin; const minLeft=window.scrollX+margin; left=Math.max(minLeft, Math.min(left, maxLeft)); if(top<(window.scrollY+margin)) top=window.scrollY+rect.bottom+6; list.style.top=top+'px'; list.style.left=left+'px'; list.style.opacity=prevO; list.style.transform=prevT; }
+  window.addEventListener('resize', ()=>{ if(root.classList.contains('open')) position(); });
+  window.addEventListener('scroll', ()=>{ if(root.classList.contains('open')) position(); }, true);
+  trigger.addEventListener('click', toggle);
+  trigger.addEventListener('keydown', e=>{ if(['Enter',' ','ArrowDown'].includes(e.key)){ e.preventDefault(); openDropdown(); const first=list.querySelector('.ms-option'); first && first.focus(); } });
+  list.addEventListener('keydown', e=>{ const focusable=[...list.querySelectorAll('.ms-option')]; const idx=focusable.indexOf(document.activeElement); if(e.key==='ArrowDown'){ e.preventDefault(); const next=focusable[Math.min(focusable.length-1, idx+1)]||focusable[0]; next.focus(); } if(e.key==='ArrowUp'){ e.preventDefault(); const prev=focusable[Math.max(0, idx-1)]||focusable[focusable.length-1]; prev.focus(); } if(e.key==='Enter'){ e.preventDefault(); document.activeElement.click(); } if(e.key==='Escape'){ e.preventDefault(); closeDropdown(); trigger.focus(); } });
+  build(); trigger.querySelector('.ms-value').textContent = native.selectedOptions[0] ? native.selectedOptions[0].textContent : '';
+}
+document.querySelectorAll('[data-enhance-select]').forEach(enhanceModernSelect);
+
+// Load locations and populate selects
+async function loadLocations(){
+  const res = await apiFetch(LOCATIONS_API);
+  if(!res || !res.success){ showNotify('Lỗi tải địa điểm', 'error'); allLocations = []; return; }
+  allLocations = res.data || [];
+  locationMap = new Map(allLocations.map(l=>[l.id, l]));
+  const optsHtml = '<option value="">-- Chọn --</option>' + allLocations.map(l=>`<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
+  if(originSelect){ originSelect.innerHTML = optsHtml; }
+  if(destinationSelect){ destinationSelect.innerHTML = optsHtml; }
+  // refresh modern-select triggers text
+  [originSelect, destinationSelect].forEach(sel=>{
+    const root = sel?.closest('.modern-select'); if(!root) return; const triggerVal = root.querySelector('.ms-value'); if(triggerVal) triggerVal.textContent = sel.selectedOptions[0]?.textContent || (sel===originSelect? 'Chọn điểm đầu' : 'Chọn điểm cuối');
+    const msCtx = root._ms; const listEl = msCtx?.list || root.querySelector('.ms-dropdown');
+    if(listEl){
+      listEl.innerHTML = '';
+      [...sel.options].forEach(opt=>{ const li=document.createElement('li'); li.className='ms-option'+(opt.selected?' active':''); li.dataset.value=opt.value; li.textContent=opt.textContent; li.role='option'; li.tabIndex=-1; li.onclick=()=>{ sel.value=opt.value; sel.dispatchEvent(new Event('change',{bubbles:true})); triggerVal.textContent=opt.textContent; [...listEl.children].forEach(li=>li.classList.toggle('active', li.dataset.value===opt.value)); const trig=root.querySelector('.ms-trigger'); if(trig) trig.click(); }; listEl.appendChild(li); });
+    }
+  });
+}
+
+// Init
+(async function(){ await loadLocations(); await loadRoutes(); })();
+
+// Close modal on backdrop click and ESC
+[routeModal].forEach(m=>{ if(!m) return; m.addEventListener('click', e=>{ if(e.target===m) closeRouteModal(); }); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(routeModal && routeModal.classList.contains('active')) closeRouteModal(); } });
+</script>
+</body>
+</html>

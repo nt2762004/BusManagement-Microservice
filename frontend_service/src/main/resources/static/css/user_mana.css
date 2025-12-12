@@ -1,0 +1,264 @@
+/* CSS đặc thù cho trang Quản lý người dùng */
+
+/* Note: Layout adjustments (.dashboard.admin-dashboard, .main-content, .table-card) 
+   are defined in HTML <style> tag for easier customization */
+
+/* User role badges */
+.role-badge {
+    display: inline-block;
+    padding: .25rem .6rem;
+    border-radius: 999px;
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+
+.role-badge.admin {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.role-badge.chu-nha-xe {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.role-badge.dieu-hanh {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+.role-badge.tai-xe {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+/* User status */
+.user-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .25rem .6rem;
+    border-radius: 999px;
+    font-size: .7rem;
+    font-weight: 600;
+}
+
+.user-status.active {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.user-status.inactive {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.user-status.locked {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* Action button color variations */
+.action-btn-inline.edit {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #bfdbfe;
+}
+
+.action-btn-inline.edit:hover {
+    background: #bfdbfe;
+}
+
+.action-btn-inline.toggle-active {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+}
+
+.action-btn-inline.toggle-active:hover {
+    background: #fde68a;
+}
+
+.action-btn-inline.delete {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+
+.action-btn-inline.delete:hover {
+    background: #fecaca;
+}
+
+/* User avatar in table */
+.user-avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: .75rem;
+    margin-right: .5rem;
+}
+
+/* User info cell */
+.user-info-cell {
+    display: flex;
+    align-items: center;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #374151;
+}
+
+.user-email {
+    font-size: .75rem;
+    color: #6b7280;
+}
+
+/* Modal adjustments for user form */
+.modal-content .form-section {
+    margin-bottom: 1rem;
+}
+
+.modal-content .form-section h4 {
+    font-size: .85rem;
+    color: #667eea;
+    margin-bottom: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+/* Khoảng cách giữa sidebar và nội dung */
+.dashboard.admin-dashboard {
+    margin-left: 50px;
+}
+.main-content {
+    padding-left: 0px;
+}
+
+.modal.hide {
+    animation: fadeOut 0.3s forwards;
+}
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.25);
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s;
+}
+.modal.active {
+    display: flex;
+}
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 2rem 2.5rem;
+    min-width: 340px;
+    box-shadow: 0 4px 24px rgba(118,75,162,0.15);
+    animation: fadeInUp 0.3s;
+}
+.modal-content label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+.modal-content input {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border: 1.5px solid #764ba2;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    background: #f8f9fa;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    will-change: border-color, box-shadow;
+}
+.modal-content input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 1.5px #667eea33;
+    outline: none;
+    background: #fff;
+}
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+/* Center align the last column (Thao tác) */
+.user-table th:last-child { text-align: center; }
+.user-table td:last-child { text-align: center; }
+
+/* ===== Modern Select (match vehicle page look & feel) ===== */
+.modern-select { position:relative; font-size:.9rem; }
+.modern-select select { position:absolute; inset:0; width:100%; height:100%; opacity:0; pointer-events:none; }
+.modern-select .ms-trigger { width:100%; min-height:38px; padding:.55rem .85rem; background:#fff; border:1.5px solid #764ba2; border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:.75rem; cursor:pointer; color:#374151; font-size:1rem; font-weight:500; line-height:1.1; transition:border-color .25s, box-shadow .25s, background-color .25s, transform .25s; text-align:left; }
+.modern-select .ms-trigger .ms-value { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.modern-select .ms-trigger .ms-caret { width:14px; height:14px; position:relative; display:flex; align-items:center; justify-content:center; }
+.modern-select .ms-trigger .ms-caret:before { content:""; width:8px; height:8px; border-right:2px solid #667eea; border-bottom:2px solid #667eea; transform:rotate(45deg) translateY(-1px); transition:transform .35s cubic-bezier(.68,-0.55,.27,1.55), border-color .3s; }
+.modern-select.open .ms-trigger .ms-caret:before { transform:rotate(225deg) translateY(1px); border-color:#764ba2; }
+.modern-select .ms-trigger:hover { border-color:#667eea; box-shadow:0 6px 18px -8px rgba(102,126,234,.40), 0 0 0 2px #667eea26; background:#ffffff; }
+.modern-select.open .ms-trigger, .modern-select .ms-trigger:focus-visible { border-color:#667eea; box-shadow:0 6px 18px -8px rgba(102,126,234,.55),0 0 0 2px #667eea33; transform:translateY(-1px); outline:none; }
+.modern-select .ms-dropdown { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #d1d5db; border-radius:12px; padding:.35rem .35rem; margin-top:.35rem; box-shadow:0 20px 48px -14px rgba(102,126,234,.38),0 6px 18px -6px rgba(118,75,162,.28); list-style:none; max-height:260px; overflow:auto; opacity:0; transform:translateY(-6px) scale(.96); pointer-events:none; transition:opacity .26s ease, transform .32s cubic-bezier(.16,.8,.3,1); scrollbar-width:thin; z-index:2147483646; }
+.modern-select.open .ms-dropdown { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+.modern-select .ms-option { padding:.55rem .8rem; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:.5rem; font-size:.85rem; line-height:1.1rem; color:#374151; transition:background .2s, color .2s; text-align:left; }
+.modern-select .ms-option:hover, .modern-select .ms-option:focus-visible { background:#eef2ff; color:#4338ca; outline:none; }
+.modern-select .ms-option.active { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; box-shadow:0 4px 12px -5px rgba(102,126,234,.55); }
+.modern-select .ms-option.active:after { content:"\f00c"; font-family:"Font Awesome 6 Free"; font-weight:900; margin-left:auto; font-size:.7rem; }
+.modern-select .ms-empty { padding:.6rem .8rem; font-size:.75rem; color:#64748b; }
+.modern-select .ms-dropdown::-webkit-scrollbar { width:8px; }
+.modern-select .ms-dropdown::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:20px; }
+.modern-select .ms-dropdown::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+/* Modal sizing to match vehicle */
+.modal-content .modern-select { width:100%; margin-bottom:.7rem; }
+.modal-content .modern-select .ms-trigger { width:100%; min-width:0; height:auto; padding:.55rem .7rem; border-radius:8px; font-size:.85rem; font-weight:500; }
+
+/* White card wrapper around the table */
+.table-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb; /* slate-200 */
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 8px 24px rgba(118,75,162,0.10);
+}
+.table-card .table-scroll {
+    width: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.table-card .user-table {
+    margin: 0; /* remove external table margin so it sits nicely inside card */
+    width: 100%;
+}
+
+/* Toolbar and filter styling similar to vehicle page */
+.toolbar { background:rgba(255,255,255,.95); backdrop-filter:blur(10px); border-radius:12px; padding:0.8rem 1rem; display:flex; justify-content:space-between; align-items:center; margin:0 0 0.8rem; box-shadow:0 5px 15px rgba(0,0,0,.08); }
+.toolbar h1 { font-size:1rem; margin:0; display:flex; align-items:center; gap:.5rem; color:#333; }
+.toolbar .toolbar-actions { display:flex; gap:.6rem; }
+.filter-bar { display:flex; flex-wrap:wrap; gap:.6rem; margin:0 0 0.8rem; }
+.search-group { display:flex; align-items:center; background:#fff; border:1.5px solid #764ba2; border-radius:8px; padding:0 .6rem; height:38px; }
+.search-group i { color:#667eea; font-size:.85rem; }
+.search-group input { border:none; outline:none; background:transparent; padding:.45rem .45rem; font-size:.85rem; width:220px; }
+.search-group input::placeholder { color:#6b7280; }
+.pagination { margin-top:1rem; display:flex; gap:.35rem; flex-wrap:wrap; }
+.pagination button { background:#fff; border:1px solid #d1d5db; padding:.4rem .65rem; border-radius:8px; font-size:.75rem; cursor:pointer; transition:.2s; }
+.pagination button.active, .pagination button:hover { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; border-color:#667eea; }
