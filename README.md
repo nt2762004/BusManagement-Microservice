@@ -4,7 +4,7 @@ The bus management project is built on Microservices architecture. It helps mana
 
 **Note: The project is deployed on AWS with a Free Tier account, so performance may be unstable.**
 
-Deployed Link: **Inactive** (AWS Free Tier expired). For details, please refer to the **report.pdf** in GitHub repository.
+Deployed Link: **Inactive** (AWS Free Tier expired). For details, please refer to the [**report.pdf**](https://github.com/nt2762004/BusManagement-Microservice/blob/main/report.pdf) in GitHub repository.
 
 ## 🏗 System Architecture
 
