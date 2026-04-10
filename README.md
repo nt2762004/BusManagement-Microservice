@@ -4,10 +4,7 @@ The bus management project is built on Microservices architecture. It helps mana
 
 **Note: The project is deployed on AWS with a Free Tier account, so performance may be unstable.**
 
-Deployed Link: http://13.214.207.121/
-- Bus Owner Account: User: chunhaxe1, Pass: 123 | User: chunhaxe2, Pass: 123.
-- Operator Account: User: dieuhanh1, Pass: 123 | User: dieuhanh2, Pass: 123 | User: dieuhanh3, Pass: 123.
-- Driver Account: User: taixe1, Pass: 123 | User: taixe2, Pass: 123 | User: taixe3, Pass: 123.
+Deployed Link: **AWS Free Tier expired**
 
 ## 🏗 System Architecture
 
